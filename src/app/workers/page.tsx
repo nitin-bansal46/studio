@@ -1,10 +1,11 @@
+// src/app/workers/page.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { PlusCircle, Edit3, Trash2, Search, Users } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { PlusCircle, Edit3, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+// import { Input } from '@/components/ui/input'; // Removed as search is removed
 import { WorkerDialog } from '@/components/workers/WorkerDialog';
 import { WorkerTable } from '@/components/workers/WorkerTable';
 import { useAppContext } from '@/contexts/AppContext';
@@ -22,11 +23,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
+import { parseISO, isAfter, startOfDay, isValid } from 'date-fns';
 
 export default function WorkersPage() {
   const { workers, deleteWorker } = useAppContext();
   const { toast } = useToast();
-  const [searchTerm, setSearchTerm] = useState('');
+  // const [searchTerm, setSearchTerm] = useState(''); // Removed search state
   const [isWorkerDialogOpen, setIsWorkerDialogOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
   
@@ -41,7 +43,7 @@ export default function WorkersPage() {
       setEditingWorker(null);
       setIsWorkerDialogOpen(true);
       // Remove action from URL after opening dialog
-      router.replace('/workers', undefined);
+      router.replace('/workers', { scroll: false });
     }
   }, [searchParams, router]);
 
@@ -72,9 +74,26 @@ export default function WorkersPage() {
     }
   };
 
-  const filteredWorkers = workers.filter((worker) =>
-    worker.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const activeWorkerCount = useMemo(() => {
+    const today = startOfDay(new Date());
+    return workers.filter(worker => {
+      if (!worker.leftDate) { // Handles null, undefined
+        return true; 
+      }
+      try {
+        const leftDateObj = parseISO(worker.leftDate);
+        // Ensure the date is valid before comparison
+        if (!isValid(leftDateObj)) return true; // Treat invalid dates as still active to be safe
+        return isAfter(leftDateObj, today); // Active if left date is after today
+      } catch (e) {
+        return true; // If parsing fails, assume active
+      }
+    }).length;
+  }, [workers]);
+
+  const sortedWorkers = useMemo(() => {
+    return [...workers].sort((a, b) => a.name.localeCompare(b.name));
+  }, [workers]);
 
   return (
     <div className="flex flex-col space-y-6 p-4 md:p-6">
@@ -90,15 +109,9 @@ export default function WorkersPage() {
       <Card>
         <CardHeader>
           <CardTitle>Worker List</CardTitle>
-          <div className="relative mt-2">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search workers..."
-              className="pl-8 w-full sm:w-1/3"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          {/* Removed search input, added active worker count */}
+          <div className="mt-2 text-sm text-muted-foreground">
+            Total Active Workers: <span className="font-semibold text-foreground">{activeWorkerCount}</span>
           </div>
         </CardHeader>
         <CardContent>
@@ -116,7 +129,7 @@ export default function WorkersPage() {
             </div>
           ) : (
             <WorkerTable
-                workers={filteredWorkers}
+                workers={sortedWorkers} // Use sortedWorkers
                 onEdit={handleEditWorker}
                 onDelete={handleOpenDeleteDialog}
             />
