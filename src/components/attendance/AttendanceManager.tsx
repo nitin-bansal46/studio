@@ -23,7 +23,7 @@ import { parseISO, isBefore, startOfDay, isAfter } from 'date-fns';
 const attendanceStatuses: AttendanceStatus[] = ['present', 'absent', 'half-day'];
 
 export default function AttendanceManager() {
-  const { workers, attendanceRecords, addAttendanceRecord, getAttendanceForWorker } = useAppContext();
+  const { workers, attendanceRecords, addAttendanceRecord, getAttendanceForWorker, deleteAttendanceRecord } = useAppContext();
   const { toast } = useToast();
   
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
@@ -31,6 +31,7 @@ export default function AttendanceManager() {
   const [moneyTakenAmounts, setMoneyTakenAmounts] = useState<Record<string, number | undefined>>({});
   
   const today = useMemo(() => startOfDay(new Date()), []);
+  const todayIso = useMemo(() => formatIsoDate(today), [today]);
 
   useEffect(() => {
     if (workers.length > 0 && !selectedWorkerId) {
@@ -42,6 +43,29 @@ export default function AttendanceManager() {
     return workers.find(w => w.id === selectedWorkerId);
   }, [workers, selectedWorkerId]);
 
+  // Effect to clear any future attendance records for the selected worker
+  useEffect(() => {
+    if (selectedWorkerId) {
+      const futureRecordsForWorker = attendanceRecords.filter(
+        (record) =>
+          record.workerId === selectedWorkerId &&
+          isAfter(parseISO(record.date), today)
+      );
+
+      if (futureRecordsForWorker.length > 0) {
+        futureRecordsForWorker.forEach((record) => {
+          deleteAttendanceRecord(record.id);
+        });
+        toast({
+          title: "Future Records Cleared",
+          description: `Attendance data for ${selectedWorker?.name || 'this worker'} for dates after today has been automatically cleared.`,
+          variant: "default",
+        });
+      }
+    }
+  }, [selectedWorkerId, attendanceRecords, today, deleteAttendanceRecord, toast, selectedWorker?.name]);
+
+
   const datesInMonth = useMemo(() => {
     return getDatesForMonth(currentDate.getFullYear(), currentDate.getMonth());
   }, [currentDate]);
@@ -52,17 +76,22 @@ export default function AttendanceManager() {
         datesInMonth.forEach(date => {
             const isoDate = formatIsoDate(date);
             const record = getAttendanceForWorker(selectedWorkerId, isoDate);
-            initialAmounts[isoDate] = record?.moneyTakenAmount; 
+            // Do not initialize money for future dates if record doesn't exist or was cleared
+            if (record && !isAfter(parseISO(isoDate), today)) {
+                initialAmounts[isoDate] = record?.moneyTakenAmount;
+            } else {
+                initialAmounts[isoDate] = undefined; // Ensure future dates are cleared
+            }
         });
         setMoneyTakenAmounts(initialAmounts);
     } else {
         setMoneyTakenAmounts({});
     }
-  }, [selectedWorkerId, datesInMonth, getAttendanceForWorker, currentDate]);
+  }, [selectedWorkerId, datesInMonth, getAttendanceForWorker, currentDate, today, attendanceRecords]); // Added attendanceRecords
 
 
   const handleStatusUpdate = (date: Date, newStatus: AttendanceStatus) => {
-    if (!selectedWorkerId || !selectedWorker) return;
+    if (!selectedWorkerId || !selectedWorker || isAfter(startOfDay(date), today)) return; // Prevent update for future dates
     const isoDate = formatIsoDate(date);
     
     const currentMoneyRaw = moneyTakenAmounts[isoDate];
@@ -84,7 +113,7 @@ export default function AttendanceManager() {
   };
   
   const handleMoneyUpdateOnBlur = (isoDate: string, value: string) => {
-    if(!selectedWorkerId || !selectedWorker) return;
+    if(!selectedWorkerId || !selectedWorker || isAfter(parseISO(isoDate), today)) return; // Prevent update for future dates
 
     const amount = parseFloat(value);
     const newAmountToSave = (value.trim() === '' || isNaN(amount)) ? 0 : amount;
@@ -117,19 +146,21 @@ export default function AttendanceManager() {
     const monthNum = currentDate.getMonth();
 
     const totalMoneyTakenThisMonth = attendanceRecords
-      .filter(r => r.workerId === selectedWorker.id && new Date(r.date).getFullYear() === year && new Date(r.date).getMonth() === monthNum)
+      .filter(r => r.workerId === selectedWorker.id && new Date(r.date).getFullYear() === year && new Date(r.date).getMonth() === monthNum && !isAfter(parseISO(r.date), today))
       .reduce((sum, r) => sum + (r.moneyTakenAmount || 0), 0);
     
-    const daysWorkedOrEffectiveUpToTodayOrEndOfMonth = getEffectiveDaysForWorkerInMonth(
+    // Calculate effective days for the worker in the month up to and including today
+    const effectiveDaysForWorkerInMonthSoFar = getEffectiveDaysForWorkerInMonth(
         currentDate, 
         selectedWorker.joinDate, 
         selectedWorker.leftDate
-      ).filter(d => !isAfter(startOfDay(d), today)); // Only count days up to and including today for "earnable" salary so far
+      ).filter(d => !isAfter(startOfDay(d), today));
 
     const totalCalendarDaysInMonth = getDatesForMonth(currentDate.getFullYear(), monthNum).length;
     const dailyRate = totalCalendarDaysInMonth > 0 ? selectedWorker.assignedSalary / totalCalendarDaysInMonth : 0;
-
-    const baseEarnableSalarySoFar = dailyRate * daysWorkedOrEffectiveUpToTodayOrEndOfMonth.length;
+    
+    // Base earnable salary is based on the number of effective days worked so far in the month
+    const baseEarnableSalarySoFar = dailyRate * effectiveDaysForWorkerInMonthSoFar.length;
     
     const remainingSalary = baseEarnableSalarySoFar - totalMoneyTakenThisMonth;
 
@@ -139,7 +170,7 @@ export default function AttendanceManager() {
       remainingSalary: remainingSalary.toFixed(2),
       assignedSalary: selectedWorker.assignedSalary.toFixed(2),
       baseEarnableSalarySoFar: baseEarnableSalarySoFar.toFixed(2),
-      daysCountedForEarnable: daysWorkedOrEffectiveUpToTodayOrEndOfMonth.length,
+      daysCountedForEarnable: effectiveDaysForWorkerInMonthSoFar.length,
     };
   }, [selectedWorker, attendanceRecords, currentDate, today]);
 
@@ -239,12 +270,12 @@ export default function AttendanceManager() {
                   let isDateDisabled = false;
                   let disabledReasonText = '';
 
-                  if (workerJoinDateObj && isBefore(dateAsStartOfDay, startOfDay(workerJoinDateObj))) {
-                    isDateDisabled = true;
-                    disabledReasonText = '(Before Join Date)';
-                  } else if (isAfter(dateAsStartOfDay, today)) {
+                  if (isAfter(dateAsStartOfDay, today)) { // Primary check for future dates
                     isDateDisabled = true;
                     disabledReasonText = '(Future Date)';
+                  } else if (workerJoinDateObj && isBefore(dateAsStartOfDay, startOfDay(workerJoinDateObj))) {
+                    isDateDisabled = true;
+                    disabledReasonText = '(Before Join Date)';
                   }
 
 
@@ -263,7 +294,7 @@ export default function AttendanceManager() {
                       </TableCell>
                       <TableCell className="py-3">
                         <RadioGroup
-                          value={record?.status}
+                          value={isDateDisabled ? undefined : record?.status} // Do not show status for future dates
                           onValueChange={(newStatus) => {
                             if (!isDateDisabled) {
                                 handleStatusUpdate(date, newStatus as AttendanceStatus);
@@ -290,7 +321,7 @@ export default function AttendanceManager() {
                                     type="number"
                                     step="any"
                                     placeholder="0"
-                                    value={moneyInputValue}
+                                    value={isDateDisabled ? '' : moneyInputValue} // Clear input for future dates
                                     onChange={(e) => {
                                         if (!isDateDisabled) {
                                            const val = e.target.value;
@@ -309,7 +340,7 @@ export default function AttendanceManager() {
                                     disabled={isDateDisabled}
                                 />
                             </PopoverTrigger>
-                             {getMoneyTakenStats && (
+                             {getMoneyTakenStats && !isDateDisabled && ( // Only show popover for non-disabled dates
                                 <PopoverContent className="w-auto text-sm p-3 space-y-1.5">
                                   <p className="font-medium">Salary Stats for {getMonthYearString(currentDate)}</p>
                                   <p>Assigned Monthly: <span className="font-semibold">₹{getMoneyTakenStats.assignedSalary}</span></p>
