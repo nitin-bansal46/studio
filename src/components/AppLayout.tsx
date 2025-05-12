@@ -49,7 +49,6 @@ const navItems: NavItem[] = [
     subItems: [
       { href: '/reports/leaves', label: 'Leaves', icon: FileText },
       { href: '/reports/wages', label: 'Wages', icon: IndianRupee },
-      // { href: '/reports/anomalies', label: 'Anomalies', icon: AlertTriangle }, // Removed Anomalies
     ],
   },
 ];
@@ -86,7 +85,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <SidebarMenu>
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
-                  {item.subItems && item.subItems.length > 0 ? ( // Check if subItems exist and is not empty
+                  {item.subItems && item.subItems.length > 0 ? ( 
                     <>
                       <SidebarMenuButton
                         onClick={toggleReportsSubMenu}
@@ -167,7 +166,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <SidebarTrigger className="sm:hidden" />
           {/* Future: Breadcrumbs or page title can go here */}
         </header>
-        <main className="flex-1 overflow-auto p-0">
+        <main key={pathname} className="flex-1 overflow-auto p-0 page-content-animate">
             {children}
         </main>
       </SidebarInset>
