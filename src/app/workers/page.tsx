@@ -11,20 +11,35 @@ import { useAppContext } from '@/contexts/AppContext';
 import type { Worker } from '@/types';
 import PageHeader from '@/components/shared/PageHeader';
 import { useSearchParams, useRouter } from 'next/navigation';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from '@/hooks/use-toast';
 
 export default function WorkersPage() {
   const { workers, deleteWorker } = useAppContext();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isWorkerDialogOpen, setIsWorkerDialogOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
   
+  const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
+  const [workerToDelete, setWorkerToDelete] = useState<Worker | null>(null);
+
   const searchParams = useSearchParams();
   const router = useRouter();
 
   useEffect(() => {
     if (searchParams.get('action') === 'add') {
       setEditingWorker(null);
-      setIsDialogOpen(true);
+      setIsWorkerDialogOpen(true);
       // Remove action from URL after opening dialog
       router.replace('/workers', undefined);
     }
@@ -32,18 +47,28 @@ export default function WorkersPage() {
 
   const handleAddWorker = () => {
     setEditingWorker(null);
-    setIsDialogOpen(true);
+    setIsWorkerDialogOpen(true);
   };
 
   const handleEditWorker = (worker: Worker) => {
     setEditingWorker(worker);
-    setIsDialogOpen(true);
+    setIsWorkerDialogOpen(true);
   };
 
-  const handleDeleteWorker = (workerId: string) => {
-    // Add confirmation dialog here if needed
-    if (window.confirm('Are you sure you want to delete this worker? This will also remove their attendance records.')) {
-        deleteWorker(workerId);
+  const handleOpenDeleteDialog = (worker: Worker) => {
+    setWorkerToDelete(worker);
+    setIsConfirmDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (workerToDelete) {
+      deleteWorker(workerToDelete.id);
+      toast({
+        title: 'Worker Deleted',
+        description: `Worker "${workerToDelete.name}" has been successfully removed.`,
+      });
+      setWorkerToDelete(null);
+      setIsConfirmDeleteDialogOpen(false);
     }
   };
 
@@ -93,20 +118,38 @@ export default function WorkersPage() {
             <WorkerTable
                 workers={filteredWorkers}
                 onEdit={handleEditWorker}
-                onDelete={handleDeleteWorker}
+                onDelete={handleOpenDeleteDialog}
             />
           )}
         </CardContent>
       </Card>
 
       <WorkerDialog
-        isOpen={isDialogOpen}
+        isOpen={isWorkerDialogOpen}
         onClose={() => {
-          setIsDialogOpen(false);
+          setIsWorkerDialogOpen(false);
           setEditingWorker(null);
         }}
         worker={editingWorker}
       />
+
+      <AlertDialog open={isConfirmDeleteDialogOpen} onOpenChange={setIsConfirmDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the worker 
+              "{workerToDelete?.name}" and all their associated attendance records.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setWorkerToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive hover:bg-destructive/90">
+              Yes, delete worker
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

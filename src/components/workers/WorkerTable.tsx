@@ -16,7 +16,7 @@ import { formatDate } from '@/lib/date-utils'; // Ensure formatDate is imported
 interface WorkerTableProps {
   workers: Worker[];
   onEdit: (worker: Worker) => void;
-  onDelete: (workerId: string) => void;
+  onDelete: (worker: Worker) => void; // Changed from (workerId: string) => void
 }
 
 export function WorkerTable({ workers, onEdit, onDelete }: WorkerTableProps) {
@@ -52,7 +52,7 @@ export function WorkerTable({ workers, onEdit, onDelete }: WorkerTableProps) {
                 <Edit3 className="h-4 w-4" />
                 <span className="sr-only">Edit</span>
               </Button>
-              <Button variant="ghost" size="icon" onClick={() => onDelete(worker.id)} className="hover:text-destructive">
+              <Button variant="ghost" size="icon" onClick={() => onDelete(worker)} className="hover:text-destructive">
                 <Trash2 className="h-4 w-4" />
                 <span className="sr-only">Delete</span>
               </Button>
