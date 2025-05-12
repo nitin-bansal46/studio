@@ -2,29 +2,30 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAppContext } from '@/contexts/AppContext';
-import { Users, CalendarCheck, DollarSign, AlertTriangle } from 'lucide-react';
+import { Users, CalendarCheck, UserMinus, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo } from 'react';
-import { getMonthYearString, isSameDay } from '@/lib/date-utils';
+import { getMonthYearString, isSameDay, formatIsoDate } from '@/lib/date-utils';
 
 export default function DashboardPage() {
   const { workers, attendanceRecords } = useAppContext();
 
   const today = useMemo(() => new Date(), []);
+  const todayIso = useMemo(() => formatIsoDate(today), [today]);
 
   const presentTodayCount = useMemo(() => {
     return attendanceRecords.filter(
       (record) =>
-        isSameDay(new Date(record.date), today) && record.status === 'present'
+        record.date === todayIso && record.status === 'present'
     ).length;
-  }, [attendanceRecords, today]);
+  }, [attendanceRecords, todayIso]);
 
-  const workersOnLeaveToday = useMemo(() => {
+  const absentOrHalfDayTodayCount = useMemo(() => {
     return attendanceRecords.filter(
       (record) =>
-        isSameDay(new Date(record.date), today) && (record.status === 'absent' || record.status === 'half-day')
+        record.date === todayIso && (record.status === 'absent' || record.status === 'half-day')
     ).length;
-  }, [attendanceRecords, today]);
+  }, [attendanceRecords, todayIso]);
 
   const currentMonthAnomalies = useMemo(() => {
     // This is a placeholder. Actual anomalies would come from AI state or recent AI runs.
@@ -64,15 +65,15 @@ export default function DashboardPage() {
           </Card>
         </Link>
 
-        <Link href="/reports/wages" passHref>
+        <Link href="/reports/leaves" passHref>
           <Card className="hover:shadow-lg transition-shadow cursor-pointer">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">On Leave Today</CardTitle>
-              <DollarSign className="h-5 w-5 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Absent/Half-day Today</CardTitle>
+              <UserMinus className="h-5 w-5 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{workersOnLeaveToday}</div>
-               <p className="text-xs text-muted-foreground">View wage reports</p>
+              <div className="text-2xl font-bold">{absentOrHalfDayTodayCount}</div>
+               <p className="text-xs text-muted-foreground">View leave reports</p>
             </CardContent>
           </Card>
         </Link>
