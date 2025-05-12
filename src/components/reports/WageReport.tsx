@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Users, IndianRupee, TrendingUp, TrendingDown, FileText, CalendarDays, UserCheck } from 'lucide-react'; // Added more icons
+import { ChevronLeft, ChevronRight, Users, IndianRupee, TrendingUp, TrendingDown, FileText, CalendarDays, UserCheck } from 'lucide-react';
 import MonthYearPicker from '@/components/shared/MonthYearPicker';
 import { formatIsoDate, getMonthYearString, getDatesForMonth, formatDate } from '@/lib/date-utils';
 import type { Worker } from '@/types';
@@ -33,11 +33,9 @@ export default function WageReport() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   useEffect(() => {
-    // Auto-select the first worker if none is selected and workers list is not empty
     if (workers.length > 0 && !selectedWorkerId) {
       setSelectedWorkerId(workers[0].id);
     }
-    // If the currently selected worker is removed from the list, reset selection
     if (selectedWorkerId && !workers.find(w => w.id === selectedWorkerId)) {
       setSelectedWorkerId(workers.length > 0 ? workers[0].id : null);
     }
@@ -75,7 +73,6 @@ export default function WageReport() {
       
       const dailyWage = totalCalendarDaysInMonth > 0 ? worker.assignedSalary / totalCalendarDaysInMonth : 0;
       
-      // Gross salary is calculated based on days present within their effective working days for the month
       const calculatedGrossSalary = totalPresents * dailyWage;
       const netPayableSalary = calculatedGrossSalary - totalMoneyTaken;
 
@@ -213,20 +210,21 @@ export default function WageReport() {
                 <CardTitle className="text-xl">Summary: {selectedWorkerWageData.workerName}</CardTitle>
                 <CardDescription>{getMonthYearString(currentMonth)}</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <SummaryItem icon={IndianRupee} label="Assigned Monthly Salary" value={formatCurrency(selectedWorkerWageData.assignedSalary)} />
-                <SummaryItem icon={CalendarDays} label="Effective Days This Month" value={`${selectedWorkerWageData.effectiveWorkingDaysInMonth} days`} />
-                <SummaryItem icon={UserCheck} label="Days Present (Equivalent)" value={`${selectedWorkerWageData.totalPresents} days`} />
-                <SummaryItem icon={TrendingDown} label="Days Absent/Leave (Equivalent)" value={`${selectedWorkerWageData.totalLeaves} days`} />
-                
-                <Separator className="my-3" />
-                
-                <SummaryItem icon={TrendingUp} label="Calculated Gross Salary" value={formatCurrency(selectedWorkerWageData.calculatedGrossSalary)} />
-                <SummaryItem icon={IndianRupee} label="Total Money Taken" value={formatCurrency(selectedWorkerWageData.totalMoneyTaken)} valueClassName="text-destructive" />
-                
-                <Separator className="my-3" />
-                
-                <SummaryItem icon={IndianRupee} label="Net Payable Salary" value={formatCurrency(selectedWorkerWageData.netPayableSalary)} labelClassName="font-semibold" valueClassName="font-bold text-lg text-primary" />
+              <CardContent className="space-y-1">
+                <Table>
+                  <TableBody>
+                    <SummaryTableRow icon={IndianRupee} label="Assigned Monthly Salary" value={formatCurrency(selectedWorkerWageData.assignedSalary)} />
+                    <SummaryTableRow icon={CalendarDays} label="Effective Days This Month" value={`${selectedWorkerWageData.effectiveWorkingDaysInMonth} days`} />
+                    <SummaryTableRow icon={UserCheck} label="Days Present (Equivalent)" value={`${selectedWorkerWageData.totalPresents} days`} />
+                    <SummaryTableRow icon={FileText} label="Days Absent/Leave (Equivalent)" value={`${selectedWorkerWageData.totalLeaves} days`} />
+                    <SummaryTableRow icon={TrendingUp} label="Calculated Gross Salary" value={formatCurrency(selectedWorkerWageData.calculatedGrossSalary)} />
+                    <SummaryTableRow icon={TrendingDown} label="Total Money Taken" value={formatCurrency(selectedWorkerWageData.totalMoneyTaken)} valueClassName="text-destructive" />
+                    <TableRow>
+                        <TableCell colSpan={2} className="p-0"><Separator className="my-2" /></TableCell>
+                    </TableRow>
+                    <SummaryTableRow icon={IndianRupee} label="Net Payable Salary" value={formatCurrency(selectedWorkerWageData.netPayableSalary)} labelClassName="font-semibold" valueClassName="font-bold text-lg text-primary" />
+                  </TableBody>
+                </Table>
                 
                 <div className="text-xs text-muted-foreground pt-3 border-t mt-3">
                   Daily wage (calendar): {formatCurrency(selectedWorkerWageData.dailyWage)}
@@ -257,7 +255,7 @@ export default function WageReport() {
   );
 }
 
-interface SummaryItemProps {
+interface SummaryTableRowProps {
   icon: React.ElementType;
   label: string;
   value: string | number;
@@ -265,14 +263,17 @@ interface SummaryItemProps {
   valueClassName?: string;
 }
 
-const SummaryItem: React.FC<SummaryItemProps> = ({ icon: Icon, label, value, labelClassName, valueClassName }) => (
-  <div className="flex items-center justify-between">
-    <div className="flex items-center text-sm text-muted-foreground">
-      <Icon className="h-4 w-4 mr-2 shrink-0" />
-      <span className={labelClassName}>{label}:</span>
-    </div>
-    <span className={`text-sm font-medium text-foreground ${valueClassName}`}>{value}</span>
-  </div>
+const SummaryTableRow: React.FC<SummaryTableRowProps> = ({ icon: Icon, label, value, labelClassName, valueClassName }) => (
+  <TableRow>
+    <TableCell className={`py-2 px-3 ${labelClassName}`}>
+      <div className="flex items-center text-sm text-muted-foreground">
+        <Icon className="h-4 w-4 mr-2 shrink-0" />
+        {label}:
+      </div>
+    </TableCell>
+    <TableCell className={`text-right py-2 px-3 text-sm font-medium text-foreground ${valueClassName}`}>
+      {value}
+    </TableCell>
+  </TableRow>
 );
-
     
