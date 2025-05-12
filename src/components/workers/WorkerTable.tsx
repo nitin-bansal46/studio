@@ -1,3 +1,4 @@
+// src/components/workers/WorkerTable.tsx
 'use client';
 
 import {
@@ -30,7 +31,7 @@ export function WorkerTable({ workers, onEdit, onDelete }: WorkerTableProps) {
           <TableHead>Name</TableHead>
           <TableHead>Join Date</TableHead>
           <TableHead>Left Date</TableHead>
-          <TableHead className="text-right">Assigned Salary</TableHead>
+          <TableHead className="text-right">Assigned Salary (₹)</TableHead>
           <TableHead className="text-right w-[120px]">Actions</TableHead>
         </TableRow>
       </TableHeader>
@@ -45,7 +46,7 @@ export function WorkerTable({ workers, onEdit, onDelete }: WorkerTableProps) {
               {worker.leftDate ? formatDate(worker.leftDate, 'PP') : '-'}
             </TableCell>
             <TableCell className="text-right">
-              {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(worker.assignedSalary)}
+              {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(worker.assignedSalary)}
             </TableCell>
             <TableCell className="text-right">
               <Button variant="ghost" size="icon" onClick={() => onEdit(worker)} className="mr-2 hover:text-accent">

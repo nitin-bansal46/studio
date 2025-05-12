@@ -1,3 +1,4 @@
+// src/contexts/AppContext.tsx
 'use client';
 
 import type { Worker, AttendanceRecord, AnomalyReport, AttendanceStatus } from '@/types';
@@ -42,25 +43,21 @@ const useLocalStorage = <T,>(key: string, initialValue: T): [T, React.Dispatch<R
         let parsedAttendance = JSON.parse(item) as any[]; // Read as any to handle old structure
         parsedAttendance = parsedAttendance.map(record => {
           if (record.hasOwnProperty('perDayWageAmount')) {
-            record.moneyTakenAmount = record.perDayWageAmount;
+            // Ensure moneyTakenAmount becomes a number, defaulting to 0 if perDayWageAmount was undefined/null
+            record.moneyTakenAmount = Number(record.perDayWageAmount) || 0;
             delete record.perDayWageAmount;
           }
+          // If moneyTakenAmount is undefined from old data (not perDayWageAmount), set to 0.
+          if (record.moneyTakenAmount === undefined) {
+            record.moneyTakenAmount = 0;
+          }
+
           if (record.status === 'per-day-wage-taken') {
-             // If status was 'per-day-wage-taken', decide a default new status, e.g., 'present'
-             // Or, if moneyTakenAmount is significant, it might imply absence or specific handling.
-             // For now, let's assume 'present' if money was taken, or it could be based on other logic.
-             // This migration might need more sophisticated rules based on app logic.
-             // A simple approach: if money was taken, mark as present but note money taken.
-             // Or, if it was specifically for taking wage INSTEAD of working, mark as absent if desired.
-             // For this change, "money taken" is independent of status, so we can keep original status if it was present/absent/half-day
-             // and just move the amount. If it WAS 'per-day-wage-taken', we must assign a new valid status.
-             // Let's default 'per-day-wage-taken' to 'present' for simplicity in migration.
             record.status = 'present'; 
           }
-          // Ensure status is one of the valid new statuses
           const validStatuses: AttendanceStatus[] = ['present', 'absent', 'half-day'];
           if (!validStatuses.includes(record.status)) {
-            record.status = 'present'; // Default if status became invalid
+            record.status = 'present'; 
           }
           return record as AttendanceRecord;
         });
@@ -115,9 +112,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addAttendanceRecord = (recordData: Omit<AttendanceRecord, 'id'>) => {
     const existingRecord = attendanceRecords.find(ar => ar.workerId === recordData.workerId && ar.date === recordData.date);
     
+    // Ensure moneyTakenAmount is a number, defaulting to 0 if undefined or null.
+    const moneyTaken = (recordData.moneyTakenAmount === undefined || recordData.moneyTakenAmount === null) 
+                       ? 0 
+                       : Number(recordData.moneyTakenAmount);
+
     const finalRecordData = {
         ...recordData,
-        moneyTakenAmount: recordData.moneyTakenAmount // Amount is passed directly
+        moneyTakenAmount: moneyTaken
     };
 
     if (existingRecord) {
@@ -129,9 +131,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
   
   const updateAttendanceRecord = (updatedRecord: AttendanceRecord) => {
+     // Ensure moneyTakenAmount is a number, defaulting to 0 if undefined or null.
+    const moneyTaken = (updatedRecord.moneyTakenAmount === undefined || updatedRecord.moneyTakenAmount === null)
+                       ? 0
+                       : Number(updatedRecord.moneyTakenAmount);
+    
     const finalRecordData = {
         ...updatedRecord,
-        moneyTakenAmount: updatedRecord.moneyTakenAmount // Amount is part of the record
+        moneyTakenAmount: moneyTaken
     };
     setAttendanceRecords((prev) => prev.map((ar) => (ar.id === finalRecordData.id ? finalRecordData : ar)));
   };

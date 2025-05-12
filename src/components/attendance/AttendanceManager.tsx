@@ -13,32 +13,13 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { formatIsoDate, getDatesForMonth, formatDate, isSameDay, getWeekdaysInMonth, getMonthYearString } from '@/lib/date-utils';
 import type { AttendanceRecord, AttendanceStatus } from '@/types';
-import { ChevronLeft, ChevronRight, Users, Info } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import MonthYearPicker from '@/components/shared/MonthYearPicker';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { parseISO, isBefore, startOfDay } from 'date-fns';
 
 const attendanceStatuses: AttendanceStatus[] = ['present', 'absent', 'half-day'];
-
-interface PendingAttendanceChange {
-  date: Date; // For display in dialog
-  isoDate: string; // For saving
-  statusToSet: AttendanceStatus;
-  moneyToSet?: number;
-  workerName: string;
-  originalRecord?: AttendanceRecord | null; // To display "from X to Y"
-}
 
 export default function AttendanceManager() {
   const { workers, attendanceRecords, addAttendanceRecord, getAttendanceForWorker } = useAppContext();
@@ -46,11 +27,9 @@ export default function AttendanceManager() {
   
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date()); 
+  // Store money taken amounts as number | undefined. Undefined means empty input.
   const [moneyTakenAmounts, setMoneyTakenAmounts] = useState<Record<string, number | undefined>>({});
   
-  const [isConfirmAttendanceDialogOpen, setIsConfirmAttendanceDialogOpen] = useState(false);
-  const [pendingAttendanceChange, setPendingAttendanceChange] = useState<PendingAttendanceChange | null>(null);
-
   const today = useMemo(() => new Date(), []);
 
   useEffect(() => {
@@ -73,11 +52,7 @@ export default function AttendanceManager() {
         datesInMonth.forEach(date => {
             const isoDate = formatIsoDate(date);
             const record = getAttendanceForWorker(selectedWorkerId, isoDate);
-            if (record && record.moneyTakenAmount !== undefined) {
-                initialAmounts[isoDate] = record.moneyTakenAmount;
-            } else {
-                initialAmounts[isoDate] = undefined; 
-            }
+            initialAmounts[isoDate] = record?.moneyTakenAmount; // Will be number or undefined
         });
         setMoneyTakenAmounts(initialAmounts);
     } else {
@@ -86,79 +61,58 @@ export default function AttendanceManager() {
   }, [selectedWorkerId, datesInMonth, getAttendanceForWorker, currentDate]);
 
 
-  const prepareAttendanceChange = (date: Date, newStatus: AttendanceStatus) => {
+  const handleStatusUpdate = (date: Date, newStatus: AttendanceStatus) => {
     if (!selectedWorkerId || !selectedWorker) return;
     const isoDate = formatIsoDate(date);
-    const originalRecord = getAttendanceForWorker(selectedWorkerId, isoDate);
-    const currentMoneyTaken = moneyTakenAmounts[isoDate] ?? originalRecord?.moneyTakenAmount;
+    
+    const currentMoneyRaw = moneyTakenAmounts[isoDate];
+    // If money input is empty (currentMoneyRaw is undefined) or not a number, save 0. Otherwise, save the number.
+    const moneyToSave = (currentMoneyRaw === undefined || currentMoneyRaw === null || isNaN(Number(currentMoneyRaw))) 
+                       ? 0 
+                       : Number(currentMoneyRaw);
 
-    setPendingAttendanceChange({
-        date,
-        isoDate,
-        statusToSet: newStatus,
-        moneyToSet: currentMoneyTaken,
-        workerName: selectedWorker.name,
-        originalRecord: originalRecord || null,
+    addAttendanceRecord({
+      workerId: selectedWorkerId,
+      date: isoDate,
+      status: newStatus,
+      moneyTakenAmount: moneyToSave,
     });
-    setIsConfirmAttendanceDialogOpen(true);
+
+    toast({
+        title: "Attendance Updated",
+        description: `${selectedWorker.name}'s status for ${formatDate(date, 'MMM d')} marked as ${newStatus}. Money taken: ₹${moneyToSave}.`,
+    });
   };
   
-  const prepareMoneyTakenChange = (isoDate: string, value: string) => {
+  const handleMoneyUpdateOnBlur = (isoDate: string, value: string) => {
     if(!selectedWorkerId || !selectedWorker) return;
+
     const amount = parseFloat(value);
-    const newAmount = isNaN(amount) ? undefined : amount;
+    // If input is empty string or not a valid number, default to 0. Otherwise, use the parsed amount.
+    const newAmountToSave = (value.trim() === '' || isNaN(amount)) ? 0 : amount;
     
-    // Update local state for input responsiveness immediately
-    setMoneyTakenAmounts(prev => ({
-        ...prev,
-        [isoDate]: newAmount,
-    }));
-
-    const originalRecord = getAttendanceForWorker(selectedWorkerId, isoDate);
-    // A save is triggered if a status already exists OR if an amount is being cleared for an existing record OR if a new amount is set for a record that already has a status.
-    // Essentially, if the record exists or will exist due to a status, and money is changing.
-    // Or if status not set but money is set, we default status to 'present'.
-    const statusToSet = originalRecord?.status || 'present'; // Default to present if setting money on a day with no status
-
-    // Only trigger confirmation if the amount actually changes for an existing record, or if it's a new record with money
-     if (originalRecord || newAmount !== undefined) {
-        setPendingAttendanceChange({
-            date: parseISO(isoDate), 
-            isoDate,
-            statusToSet: statusToSet, 
-            moneyToSet: newAmount,
-            workerName: selectedWorker.name,
-            originalRecord: originalRecord || null,
-        });
-        setIsConfirmAttendanceDialogOpen(true);
-     }
-  };
-
-  const executeAttendanceChange = () => {
-    if (!pendingAttendanceChange || !selectedWorkerId) return;
-    const { isoDate, statusToSet, moneyToSet, workerName, date } = pendingAttendanceChange;
+    const existingRecord = getAttendanceForWorker(selectedWorkerId, isoDate);
+    // Default to 'present' if setting money on a day with no status or record,
+    // or if the existing status is somehow invalid (should not happen with type safety).
+    const statusToSet = existingRecord?.status || 'present'; 
 
     addAttendanceRecord({
       workerId: selectedWorkerId,
       date: isoDate,
       status: statusToSet,
-      moneyTakenAmount: moneyToSet,
+      moneyTakenAmount: newAmountToSave,
     });
-
-    let toastDescription = `${workerName}'s attendance for ${formatDate(date, 'MMM d')} marked as ${statusToSet}.`;
-    if (moneyToSet !== undefined) {
-        toastDescription += ` Money taken: ${moneyToSet}.`;
-    } else {
-        toastDescription += ` No money taken.`;
-    }
+    
+    // Update local state for input to reflect the saved value (e.g., show "0" if input was cleared)
+    setMoneyTakenAmounts(prev => ({
+        ...prev,
+        [isoDate]: newAmountToSave,
+    }));
 
     toast({
         title: "Attendance Updated",
-        description: toastDescription,
+        description: `${selectedWorker.name}'s money taken for ${formatDate(parseISO(isoDate), 'MMM d')} updated to ₹${newAmountToSave}. Status: ${statusToSet}.`,
     });
-
-    setIsConfirmAttendanceDialogOpen(false);
-    setPendingAttendanceChange(null);
   };
   
   const getMoneyTakenStats = useMemo(() => {
@@ -260,14 +214,16 @@ export default function AttendanceManager() {
                 <TableRow>
                   <TableHead className="w-[180px] whitespace-nowrap">Date</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="w-[200px]">Money Taken</TableHead>
+                  <TableHead className="w-[200px]">Money Taken (₹)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {datesInMonth.map(date => {
                   const isoDate = formatIsoDate(date);
                   const record = getAttendanceForWorker(selectedWorkerId, isoDate);
-                  const moneyTakenForDay = moneyTakenAmounts[isoDate] ?? record?.moneyTakenAmount ?? '';
+                  // Display value from local state moneyTakenAmounts, fallback to empty string for input control
+                  const currentDisplayAmount = moneyTakenAmounts[isoDate];
+                  const moneyInputValue = currentDisplayAmount === undefined ? '' : currentDisplayAmount.toString();
                   
                   const isCurrentMonthAndYear = currentDate.getFullYear() === today.getFullYear() && currentDate.getMonth() === today.getMonth();
                   const isTodayRow = isCurrentMonthAndYear && isSameDay(date, today);
@@ -294,7 +250,7 @@ export default function AttendanceManager() {
                           value={record?.status}
                           onValueChange={(newStatus) => {
                             if (!isDateDisabled) {
-                                prepareAttendanceChange(date, newStatus as AttendanceStatus);
+                                handleStatusUpdate(date, newStatus as AttendanceStatus);
                             }
                           }}
                           className="flex flex-wrap gap-x-4 gap-y-2 items-center"
@@ -317,25 +273,20 @@ export default function AttendanceManager() {
                                 <Input
                                     type="number"
                                     step="any"
-                                    placeholder="Amount"
-                                    value={moneyTakenForDay}
+                                    placeholder="0"
+                                    value={moneyInputValue}
                                     onChange={(e) => {
                                         if (!isDateDisabled) {
-                                           // Update local state immediately
-                                            const val = e.target.value;
-                                            const parsedAmount = parseFloat(val);
-                                            const newLocalAmount = isNaN(parsedAmount) ? undefined : parsedAmount;
-                                            setMoneyTakenAmounts(prev => ({ ...prev, [isoDate]: newLocalAmount }));
+                                           const val = e.target.value;
+                                           setMoneyTakenAmounts(prev => ({ 
+                                               ...prev, 
+                                               [isoDate]: val === '' ? undefined : parseFloat(val) 
+                                            }));
                                         }
                                     }}
-                                    onBlur={(e) => { // Trigger confirmation on blur if changed and valid save condition
+                                    onBlur={(e) => { 
                                         if (!isDateDisabled) {
-                                            const originalAmount = record?.moneyTakenAmount;
-                                            const currentInputAmount = moneyTakenAmounts[isoDate];
-                                            // Check if value actually changed from persisted or it's a new entry with value
-                                            if(currentInputAmount !== originalAmount || (!record && currentInputAmount !== undefined)){
-                                               prepareMoneyTakenChange(isoDate, e.target.value);
-                                            }
+                                           handleMoneyUpdateOnBlur(isoDate, e.target.value);
                                         }
                                     }}
                                     className="w-[120px] h-8 text-sm"
@@ -346,10 +297,10 @@ export default function AttendanceManager() {
                                 <PopoverContent className="w-auto text-sm p-3">
                                   <div className="space-y-1.5">
                                     <p className="font-medium">Monthly Salary Stats for {getMonthYearString(currentDate)}</p>
-                                    <p>Assigned Salary: <span className="font-semibold">${getMoneyTakenStats.assignedSalary}</span></p>
-                                    <p>Daily Rate (approx): <span className="font-semibold">${getMoneyTakenStats.dailyRate}</span></p>
-                                    <p>Total Money Taken: <span className="font-semibold">${getMoneyTakenStats.totalMoneyTakenThisMonth}</span></p>
-                                    <p>Remaining Payable: <span className="font-semibold">${getMoneyTakenStats.remainingSalary}</span></p>
+                                    <p>Assigned Salary: <span className="font-semibold">₹{getMoneyTakenStats.assignedSalary}</span></p>
+                                    <p>Daily Rate: <span className="font-semibold">₹{getMoneyTakenStats.dailyRate}</span></p>
+                                    <p>Total Money Taken: <span className="font-semibold">₹{getMoneyTakenStats.totalMoneyTakenThisMonth}</span></p>
+                                    <p>Remaining Payable: <span className="font-semibold">₹{getMoneyTakenStats.remainingSalary}</span></p>
                                   </div>
                                 </PopoverContent>
                               )}
@@ -367,51 +318,6 @@ export default function AttendanceManager() {
         )}
       </CardContent>
     </Card>
-    <AlertDialog open={isConfirmAttendanceDialogOpen} onOpenChange={setIsConfirmAttendanceDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Attendance Update</AlertDialogTitle>
-            {pendingAttendanceChange && (
-                <AlertDialogDescription>
-                    Update attendance for <strong>{pendingAttendanceChange.workerName}</strong> on <strong>{formatDate(pendingAttendanceChange.date, 'PP')}</strong>?
-                    <div className="mt-2 space-y-1 text-sm">
-                       <p>New Status: <span className="font-semibold">{pendingAttendanceChange.statusToSet.replace('-', ' ')}</span>
-                       {pendingAttendanceChange.originalRecord?.status && pendingAttendanceChange.originalRecord.status !== pendingAttendanceChange.statusToSet && 
-                       ` (was ${pendingAttendanceChange.originalRecord.status.replace('-', ' ')})`}</p>
-                       
-                       <p>Money Taken: <span className="font-semibold">{pendingAttendanceChange.moneyToSet ?? '0'}</span>
-                       {pendingAttendanceChange.originalRecord?.moneyTakenAmount !== undefined && pendingAttendanceChange.originalRecord.moneyTakenAmount !== pendingAttendanceChange.moneyToSet &&
-                       ` (was ${pendingAttendanceChange.originalRecord.moneyTakenAmount ?? '0'})`}
-                       {pendingAttendanceChange.originalRecord?.moneyTakenAmount === undefined && pendingAttendanceChange.moneyToSet !== undefined && ` (was Not Set)`}
-                       </p>
-                    </div>
-                </AlertDialogDescription>
-            )}
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => {
-                // Revert moneyTakenAmounts if change was cancelled and it was a money change
-                if (pendingAttendanceChange && pendingAttendanceChange.originalRecord) {
-                    setMoneyTakenAmounts(prev => ({
-                        ...prev,
-                        [pendingAttendanceChange.isoDate]: pendingAttendanceChange.originalRecord!.moneyTakenAmount
-                    }));
-                } else if (pendingAttendanceChange && !pendingAttendanceChange.originalRecord) {
-                     // if it was a new entry and cancelled, clear the local money amount
-                     setMoneyTakenAmounts(prev => ({
-                        ...prev,
-                        [pendingAttendanceChange.isoDate]: undefined
-                    }));
-                }
-                setPendingAttendanceChange(null);
-            }}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={executeAttendanceChange}>
-              Confirm Update
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }
-

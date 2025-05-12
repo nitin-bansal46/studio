@@ -1,3 +1,4 @@
+// src/components/reports/WageReport.tsx
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -116,7 +117,7 @@ export default function WageReport() {
   };
   
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
   };
 
   if (workers.length === 0) {
