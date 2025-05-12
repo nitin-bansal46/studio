@@ -6,11 +6,14 @@ import { useAppContext } from '@/contexts/AppContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
-import { formatIsoDate, getMonthYearString, formatDate, getDatesForMonth } from '@/lib/date-utils';
+import { formatIsoDate, getMonthYearString, formatDate, getDatesForMonth, isSameDay as customIsSameDay } from '@/lib/date-utils';
 import type { AttendanceRecord, Worker } from '@/types';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Users, CalendarDays } from 'lucide-react';
 import MonthYearPicker from '@/components/shared/MonthYearPicker';
+import { parseISO, isBefore, startOfDay, isValid, format as formatDateFn } from 'date-fns'; // Added imports
+import type { DayPicker, DayContentProps } from 'react-day-picker'; // For DayContentProps type
+
 
 export default function LeaveReport() {
   const { workers, attendanceRecords } = useAppContext();
@@ -39,6 +42,21 @@ export default function LeaveReport() {
     );
   }, [attendanceRecords, selectedWorkerId, currentMonth]);
 
+  const joinDateObj = useMemo(() => {
+    if (!selectedWorker?.joinDate) return null;
+    try {
+      const parsed = parseISO(selectedWorker.joinDate);
+      return isValid(parsed) ? startOfDay(parsed) : null;
+    } catch {
+      return null;
+    }
+  }, [selectedWorker]);
+
+  const daysInCurrentMonth = useMemo(() => {
+    return getDatesForMonth(currentMonth.getFullYear(), currentMonth.getMonth());
+  }, [currentMonth]);
+
+
   const leaveData = useMemo(() => {
     const totalLeaves = workerAttendanceForMonth.reduce((acc, record) => {
       if (record.status === 'absent') return acc + 1;
@@ -63,24 +81,53 @@ export default function LeaveReport() {
       return newDate;
     });
   };
+  
+  const beforeJoinDateDays = useMemo(() => {
+    if (!joinDateObj) return [];
+    return daysInCurrentMonth.filter(dayInMonth => isBefore(startOfDay(dayInMonth), joinDateObj));
+  }, [daysInCurrentMonth, joinDateObj]);
 
-  const calendarModifiers = {
-    absent: workerAttendanceForMonth.filter(r => r.status === 'absent').map(r => new Date(r.date)),
-    halfDay: workerAttendanceForMonth.filter(r => r.status === 'half-day').map(r => new Date(r.date)),
-    // moneyTaken: workerAttendanceForMonth.filter(r => r.moneyTakenAmount && r.moneyTakenAmount > 0).map(r => new Date(r.date)), // Optional: visualize money taken days
-  };
+
+  const calendarModifiers = useMemo(() => ({
+    absent: workerAttendanceForMonth.filter(r => r.status === 'absent').map(r => parseISO(r.date)),
+    halfDay: workerAttendanceForMonth.filter(r => r.status === 'half-day').map(r => parseISO(r.date)),
+    present: workerAttendanceForMonth.filter(r => r.status === 'present').map(r => parseISO(r.date)),
+    beforeJoinDate: beforeJoinDateDays,
+  }), [workerAttendanceForMonth, beforeJoinDateDays]);
 
   const calendarModifiersStyles = {
     absent: { backgroundColor: 'hsl(var(--destructive))', color: 'hsl(var(--destructive-foreground))', borderRadius: '0.25rem' },
-    halfDay: { backgroundColor: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))', opacity: 0.7, borderRadius: '0.25rem' },
-    // moneyTaken: { border: '2px dashed hsl(var(--primary))', borderRadius: '0.25rem' },
+    halfDay: { backgroundColor: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))', borderRadius: '0.25rem', opacity: 0.8 },
+    present: { backgroundColor: 'hsl(var(--chart-2))', color: 'hsl(var(--primary-foreground))', borderRadius: '0.25rem' },
+    beforeJoinDate: { opacity: 0.5, backgroundColor: 'hsl(var(--muted))', pointerEvents: 'none' as 'none', borderRadius: '0.25rem' },
   };
   
   const legendItems = [
+    { label: 'Present', style: calendarModifiersStyles.present },
     { label: 'Absent', style: calendarModifiersStyles.absent },
     { label: 'Half-day', style: calendarModifiersStyles.halfDay },
-    // { label: 'Money Taken', style: calendarModifiersStyles.moneyTaken, isBorder: true }, // Optional legend item
+    { label: 'Before Join Date', style: { ...calendarModifiersStyles.beforeJoinDate, backgroundColor: 'hsl(var(--muted))' } },
   ];
+
+  const CustomDayContent = (props: DayContentProps) => {
+    const record = workerAttendanceForMonth.find(r => customIsSameDay(parseISO(r.date), props.date));
+    const moneyTaken = record?.moneyTakenAmount;
+    const isDayBeforeJoining = joinDateObj ? isBefore(startOfDay(props.date), joinDateObj) : false;
+    
+    // Do not show money for outside days or days before joining
+    const showMoney = moneyTaken && moneyTaken > 0 && !props.outside && !isDayBeforeJoining;
+
+    return (
+      <div className="relative w-full h-full flex flex-col items-center justify-center">
+        <span>{formatDateFn(props.date, 'd')}</span>
+        {showMoney && (
+          <span className="absolute -top-0.5 right-0 text-[0.55rem] font-bold px-0.5 bg-background/80 text-foreground rounded-bl-sm shadow-sm leading-tight">
+            ₹{moneyTaken}
+          </span>
+        )}
+      </div>
+    );
+  };
 
 
   if (workers.length === 0) {
@@ -143,17 +190,18 @@ export default function LeaveReport() {
               <div className="flex justify-between"><span>Half-Day Leaves:</span> <span className="font-semibold">{leaveData.halfDayLeaves} days</span></div>
               <div className="flex justify-between"><span>Present Days (equiv.):</span> <span className="font-semibold">{leaveData.presentDays} days</span></div>
               <div className="flex justify-between"><span>Calendar Days in Month:</span> <span className="font-semibold">{leaveData.calendarDaysInMonth} days</span></div>
+              {joinDateObj && <div className="text-xs text-muted-foreground">Joined: {formatDate(joinDateObj, 'PP')}</div>}
             </CardContent>
           </Card>
           <Card className="md:col-span-2">
             <CardHeader>
               <CardTitle>Leave Calendar</CardTitle>
-              <CardDescription>
+              <CardDescription className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
                  {legendItems.map(item => (
-                    <span key={item.label} className="mr-4">
+                    <span key={item.label} className="flex items-center">
                         <span 
                             className="inline-block w-3 h-3 rounded-sm mr-1 align-middle" 
-                            style={item.isBorder ? { border: item.style.border } : item.style}
+                            style={item.style}
                         ></span> 
                         {item.label}
                     </span>
@@ -168,10 +216,14 @@ export default function LeaveReport() {
                 onMonthChange={setCurrentMonth}
                 modifiers={calendarModifiers}
                 modifiersStyles={calendarModifiersStyles}
+                components={{ DayContent: CustomDayContent }}
                 className="rounded-md border p-0"
                 classNames={{
                     day_selected: '', 
-                    day_today: 'bg-muted text-foreground rounded-md',
+                    day_today: 'bg-primary/10 text-primary ring-1 ring-primary rounded-md',
+                    day_outside: 'text-muted-foreground opacity-50',
+                    cell: 'h-10 w-10 text-center text-sm p-0 relative first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20',
+                    day: 'h-10 w-10 p-0 font-normal aria-selected:opacity-100',
                 }}
               />
             </CardContent>
