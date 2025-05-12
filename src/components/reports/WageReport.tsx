@@ -14,6 +14,7 @@ import type { Worker } from '@/types';
 import { getEffectiveDaysForWorkerInMonth } from '@/lib/date-utils';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { useSearchParams } from 'next/navigation';
 
 interface CalculatedWageData {
   workerId: string;
@@ -32,15 +33,23 @@ export default function WageReport() {
   const { workers, attendanceRecords } = useAppContext();
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const searchParams = useSearchParams();
 
   useEffect(() => {
-    if (workers.length > 0 && !selectedWorkerId) {
+    const urlWorkerId = searchParams.get('workerId');
+    if (urlWorkerId && workers.find(w => w.id === urlWorkerId)) {
+      if (selectedWorkerId !== urlWorkerId) {
+        setSelectedWorkerId(urlWorkerId);
+      }
+    } else if (workers.length > 0 && !selectedWorkerId) {
+      // If no valid workerId from URL, and no worker selected yet, select the first one
       setSelectedWorkerId(workers[0].id);
-    }
-    if (selectedWorkerId && !workers.find(w => w.id === selectedWorkerId)) {
+    } else if (selectedWorkerId && !workers.find(w => w.id === selectedWorkerId)) {
+      // If current selection is no longer valid (e.g., worker deleted), reset or pick first
       setSelectedWorkerId(workers.length > 0 ? workers[0].id : null);
     }
-  }, [workers, selectedWorkerId]);
+  }, [searchParams, workers, selectedWorkerId]);
+
 
   const calculatedWages: CalculatedWageData[] = useMemo(() => {
     const daysInSelectedMonth = getDatesForMonth(currentMonth.getFullYear(), currentMonth.getMonth());
@@ -74,6 +83,7 @@ export default function WageReport() {
       
       const dailyWage = totalCalendarDaysInMonth > 0 ? worker.assignedSalary / totalCalendarDaysInMonth : 0;
       
+      // Gross salary is calculated based on presents within their effective working days for the month
       const calculatedGrossSalary = totalPresents * dailyWage;
       const netPayableSalary = calculatedGrossSalary - totalMoneyTaken;
 
@@ -129,7 +139,7 @@ export default function WageReport() {
           <CardTitle>Wage Report Options</CardTitle>
           <div className="flex flex-col sm:flex-row gap-4 mt-4 items-center">
             <div className="w-full sm:w-auto">
-              <Select onValueChange={setSelectedWorkerId} value={selectedWorkerId || undefined}>
+              <Select onValueChange={(value) => setSelectedWorkerId(value)} value={selectedWorkerId || undefined}>
                 <SelectTrigger className="w-full sm:w-[200px]">
                   <SelectValue placeholder="Select Worker for Summary" />
                 </SelectTrigger>

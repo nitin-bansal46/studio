@@ -2,11 +2,11 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { PlusCircle, Users, ArrowUp, ArrowDown } from 'lucide-react'; // Added ArrowUp, ArrowDown (though not directly used in JSX here, good for consistency)
+import { PlusCircle, Users, ArrowUp, ArrowDown } from 'lucide-react'; 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { WorkerDialog } from '@/components/workers/WorkerDialog';
-import { WorkerTable, type SortableWorkerColumn, type SortOrder } from '@/components/workers/WorkerTable'; // Import types
+import { WorkerTable, type SortableWorkerColumn, type SortOrder } from '@/components/workers/WorkerTable';
 import { useAppContext } from '@/contexts/AppContext';
 import type { Worker } from '@/types';
 import PageHeader from '@/components/shared/PageHeader';
@@ -81,6 +81,10 @@ export default function WorkersPage() {
       setSortKey(key);
       setSortOrder('asc');
     }
+  };
+
+  const handleWorkerRowClick = (worker: Worker) => {
+    router.push(`/reports/wages?workerId=${worker.id}`);
   };
 
   const activeWorkerCount = useMemo(() => {
@@ -170,6 +174,7 @@ export default function WorkersPage() {
                 workers={sortedWorkers}
                 onEdit={handleEditWorker}
                 onDelete={handleOpenDeleteDialog}
+                onRowClick={handleWorkerRowClick} // Pass the handler
                 sortKey={sortKey}
                 sortOrder={sortOrder}
                 onSortRequest={handleSortRequest}

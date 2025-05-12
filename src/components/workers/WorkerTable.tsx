@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Edit3, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 import type { Worker } from '@/types';
 import { formatDate } from '@/lib/date-utils'; 
+import { cn } from '@/lib/utils';
 
 export type SortableWorkerColumn = 'name' | 'joinDate' | 'leftDate' | 'assignedSalary';
 export type SortOrder = 'asc' | 'desc';
@@ -21,12 +22,13 @@ interface WorkerTableProps {
   workers: Worker[];
   onEdit: (worker: Worker) => void;
   onDelete: (worker: Worker) => void;
+  onRowClick?: (worker: Worker) => void; // Added for row click navigation
   sortKey: SortableWorkerColumn | null;
   sortOrder: SortOrder;
   onSortRequest: (key: SortableWorkerColumn) => void;
 }
 
-export function WorkerTable({ workers, onEdit, onDelete, sortKey, sortOrder, onSortRequest }: WorkerTableProps) {
+export function WorkerTable({ workers, onEdit, onDelete, onRowClick, sortKey, sortOrder, onSortRequest }: WorkerTableProps) {
   if (workers.length === 0) {
     return <p className="text-center text-muted-foreground py-4">No workers found.</p>;
   }
@@ -59,7 +61,11 @@ export function WorkerTable({ workers, onEdit, onDelete, sortKey, sortOrder, onS
       </TableHeader>
       <TableBody>
         {workers.map((worker) => (
-          <TableRow key={worker.id}>
+          <TableRow 
+            key={worker.id}
+            onClick={() => onRowClick && onRowClick(worker)}
+            className={cn(onRowClick && "cursor-pointer hover:bg-muted/50")}
+          >
             <TableCell className="font-medium">{worker.name}</TableCell>
             <TableCell>
               {worker.joinDate ? formatDate(worker.joinDate, 'PP') : '-'}
@@ -71,11 +77,11 @@ export function WorkerTable({ workers, onEdit, onDelete, sortKey, sortOrder, onS
               {new Intl.NumberFormat('en-IN', { currency: 'INR', style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(worker.assignedSalary)}
             </TableCell>
             <TableCell className="text-right">
-              <Button variant="ghost" size="icon" onClick={() => onEdit(worker)} className="mr-2 hover:text-accent">
+              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onEdit(worker);}} className="mr-2 hover:text-accent">
                 <Edit3 className="h-4 w-4" />
                 <span className="sr-only">Edit</span>
               </Button>
-              <Button variant="ghost" size="icon" onClick={() => onDelete(worker)} className="hover:text-destructive">
+              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onDelete(worker);}} className="hover:text-destructive">
                 <Trash2 className="h-4 w-4" />
                 <span className="sr-only">Delete</span>
               </Button>
