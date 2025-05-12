@@ -56,43 +56,43 @@ body {
   }
 
   .dark {
-    --background: 234 62% 15%; /* Dark Navy for dark mode background */
-    --foreground: 0 0% 96.1%; /* Light Grey for dark mode text */
+    --background: 220 20% 10%; /* Deeper, slightly desaturated dark blue-grey */
+    --foreground: 220 15% 92%; /* Softer off-white */
 
-    --card: 234 62% 20%; /* Slightly lighter Dark Navy for cards */
-    --card-foreground: 0 0% 96.1%;
+    --card: 220 20% 14%; /* Slightly lighter than background, for depth */
+    --card-foreground: 220 15% 92%;
 
-    --popover: 234 62% 20%;
-    --popover-foreground: 0 0% 96.1%;
+    --popover: 220 20% 13%; /* Similar to card, for consistency */
+    --popover-foreground: 220 15% 92%;
 
-    --primary: 187 100% 42%; /* Teal as primary in dark mode for contrast */
-    --primary-foreground: 234 62% 15%; /* Dark Navy text on Teal */
+    --primary: 187 80% 48%; /* Teal, slightly less saturated, a bit brighter for pop */
+    --primary-foreground: 220 15% 10%; /* Dark text on primary for contrast */
 
-    --secondary: 234 62% 25%; /* Lighter Dark Navy for secondary elements */
-    --secondary-foreground: 0 0% 96.1%;
+    --secondary: 220 20% 18%; /* For secondary elements, subtle difference */
+    --secondary-foreground: 220 15% 85%; /* Slightly dimmer than main foreground */
 
-    --muted: 234 62% 25%;
-    --muted-foreground: 0 0% 70%; /* Lighter grey for muted text */
+    --muted: 220 20% 18%; /* Consistent with secondary */
+    --muted-foreground: 220 15% 65%; /* More subdued for muted text */
 
-    --accent: 187 100% 50%; /* Slightly brighter Teal */
-    --accent-foreground: 234 62% 15%;
+    --accent: 187 85% 55%; /* Teal accent, adjusted for dark mode visibility */
+    --accent-foreground: 220 15% 10%; /* Dark text on accent */
 
-    --destructive: 0 70% 50%;
+    --destructive: 0 70% 55%; /* Destructive red, ensure visibility */
     --destructive-foreground: 0 0% 98%;
 
-    --border: 234 62% 30%;
-    --input: 234 62% 30%;
-    --ring: 187 100% 50%;
+    --border: 220 20% 25%; /* Subtle border */
+    --input: 220 20% 22%; /* Input fields background */
+    --ring: 187 80% 50%; /* Ring color matching primary hue */
     
     /* Sidebar specific colors for dark mode */
-    --sidebar-background: 234 62% 12%; /* Even darker Navy for sidebar */
-    --sidebar-foreground: 0 0% 90%; 
-    --sidebar-primary: 187 100% 42%; 
+    --sidebar-background: 220 20% 8%; /* Even darker for sidebar distinction */
+    --sidebar-foreground: 220 15% 88%; 
+    --sidebar-primary: 187 80% 48%; 
     --sidebar-primary-foreground: 0 0% 100%; 
-    --sidebar-accent: 234 62% 20%; 
-    --sidebar-accent-foreground: 0 0% 96.1%; 
-    --sidebar-border: 234 62% 25%; 
-    --sidebar-ring: 187 100% 50%;
+    --sidebar-accent: 220 20% 15%; 
+    --sidebar-accent-foreground: 220 15% 95%; 
+    --sidebar-border: 220 20% 20%; 
+    --sidebar-ring: 187 80% 50%;
 
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
@@ -109,4 +109,15 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+@layer utilities {
+  .tab-content-fade-in[data-state="active"] {
+    animation: fadeIn 0.3s ease-out;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
 }

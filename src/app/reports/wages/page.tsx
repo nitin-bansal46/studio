@@ -4,7 +4,7 @@ import WageReport from '@/components/reports/WageReport';
 
 export default function WagesReportPage() {
   return (
-    <TabsContent value="wages">
+    <TabsContent value="wages" className="tab-content-fade-in">
       <WageReport />
     </TabsContent>
   );
