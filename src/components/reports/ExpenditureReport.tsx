@@ -29,7 +29,7 @@ interface MonthlyExpenditureData {
   totalCalculatedGrossSalaries: number;
   totalMoneyTaken: number;
   totalNetPayableSalaries: number;
-  workerDetails: CalculatedWageData[];
+  workerDetails: CalculatedWageData[]; // Kept for calculation logic, though not displayed directly
 }
 
 export default function ExpenditureReport() {
@@ -58,7 +58,7 @@ export default function ExpenditureReport() {
     const workerDetails = workers.map(worker => {
       const effectiveDaysList = getEffectiveDaysForWorkerInMonth(currentMonth, worker.joinDate, worker.leftDate);
       const effectiveDatesISO = new Set(effectiveDaysList.map(d => formatIsoDate(d)));
-      const effectiveWorkingDaysInMonthCount = effectiveDaysList.length;
+      // const effectiveWorkingDaysInMonthCount = effectiveDaysList.length; // Not directly used in summary
 
       const workerAttendanceInEffectivePeriod = attendanceRecords.filter(
         record => record.workerId === worker.id && effectiveDatesISO.has(record.date)
@@ -88,7 +88,7 @@ export default function ExpenditureReport() {
         workerId: worker.id,
         workerName: worker.name,
         assignedSalary: worker.assignedSalary,
-        effectiveWorkingDaysInMonth: effectiveWorkingDaysInMonthCount,
+        effectiveWorkingDaysInMonth: effectiveDaysList.length,
         totalPresents,
         calculatedGrossSalary,
         totalMoneyTaken: currentWorkerMoneyTaken,
@@ -101,7 +101,7 @@ export default function ExpenditureReport() {
       totalCalculatedGrossSalaries: totalGross,
       totalMoneyTaken: totalTaken,
       totalNetPayableSalaries: totalNet,
-      workerDetails,
+      workerDetails, // Still part of the data structure
     };
   }, [workers, attendanceRecords, currentMonth]);
 
@@ -153,78 +153,32 @@ export default function ExpenditureReport() {
         </CardHeader>
       </Card>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <Card className="md:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-xl">Expenditure Summary</CardTitle>
-            <CardDescription>{getMonthYearString(currentMonth)}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            <Table>
-                <TableBody>
-                    <SummaryTableRow icon={Briefcase} label="Total Assigned Salaries" value={formatCurrency(monthlyExpenditureData.totalAssignedSalaries)} />
-                    <SummaryTableRow icon={TrendingUp} label="Total Gross Salaries (Calculated)" value={formatCurrency(monthlyExpenditureData.totalCalculatedGrossSalaries)} />
-                    <SummaryTableRow icon={TrendingDown} label="Total Money Taken by Workers" value={formatCurrency(monthlyExpenditureData.totalMoneyTaken)} valueClassName="text-destructive" />
-                    <TableRow><TableCell colSpan={2} className="p-0"><Separator className="my-2" /></TableCell></TableRow>
-                    <SummaryTableRow 
-                        icon={IndianRupee} 
-                        label="Total Net Payable Salaries" 
-                        value={formatCurrency(monthlyExpenditureData.totalNetPayableSalaries)}
-                        labelClassName="font-semibold"
-                        valueClassName={cn(
-                            "font-bold text-lg",
-                            monthlyExpenditureData.totalNetPayableSalaries < 0 ? "text-destructive" : "text-primary"
-                        )}
-                    />
-                </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        <div className="md:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Worker-wise Breakdown</CardTitle>
-              <CardDescription>Detailed salary calculations for each worker for {getMonthYearString(currentMonth)}.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {monthlyExpenditureData.workerDetails.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Worker</TableHead>
-                        <TableHead className="text-right">Gross Salary</TableHead>
-                        <TableHead className="text-right">Money Taken</TableHead>
-                        <TableHead className="text-right">Net Payable</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {monthlyExpenditureData.workerDetails.map(data => (
-                        <TableRow key={data.workerId}>
-                          <TableCell className="font-medium">{data.workerName}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(data.calculatedGrossSalary)}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(data.totalMoneyTaken)}</TableCell>
-                          <TableCell 
-                            className={cn(
-                              "text-right font-semibold",
-                              data.netPayableSalary < 0 ? "text-destructive" : "text-primary"
-                            )}
-                          >
-                            {formatCurrency(data.netPayableSalary)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <p className="text-center text-muted-foreground py-4">No worker data to display for this month.</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xl">Expenditure Summary</CardTitle>
+          <CardDescription>{getMonthYearString(currentMonth)}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          <Table>
+              <TableBody>
+                  <SummaryTableRow icon={Briefcase} label="Total Assigned Salaries" value={formatCurrency(monthlyExpenditureData.totalAssignedSalaries)} />
+                  <SummaryTableRow icon={TrendingUp} label="Total Gross Salaries (Calculated)" value={formatCurrency(monthlyExpenditureData.totalCalculatedGrossSalaries)} />
+                  <SummaryTableRow icon={TrendingDown} label="Total Money Taken by Workers" value={formatCurrency(monthlyExpenditureData.totalMoneyTaken)} valueClassName="text-destructive" />
+                  <TableRow><TableCell colSpan={2} className="p-0"><Separator className="my-2" /></TableCell></TableRow>
+                  <SummaryTableRow 
+                      icon={IndianRupee} 
+                      label="Total Net Payable Salaries" 
+                      value={formatCurrency(monthlyExpenditureData.totalNetPayableSalaries)}
+                      labelClassName="font-semibold"
+                      valueClassName={cn(
+                          "font-bold text-lg",
+                          monthlyExpenditureData.totalNetPayableSalaries < 0 ? "text-destructive" : "text-primary"
+                      )}
+                  />
+              </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -251,3 +205,4 @@ const SummaryTableRow: React.FC<SummaryTableRowProps> = ({ icon: Icon, label, va
     </TableCell>
   </TableRow>
 );
+
