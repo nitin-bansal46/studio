@@ -6,25 +6,24 @@ import { useAppContext } from '@/contexts/AppContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getMonthYearString, getEffectiveDaysForWorkerInMonth, formatIsoDate, getDatesForMonth } from '@/lib/date-utils';
-import type { Worker } from '@/types';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Users, IndianRupee } from 'lucide-react'; // Changed DollarSign to IndianRupee
+import { ChevronLeft, ChevronRight, Users, IndianRupee, TrendingUp, TrendingDown, FileText } from 'lucide-react'; // Added more icons
 import MonthYearPicker from '@/components/shared/MonthYearPicker';
+import { formatIsoDate, getMonthYearString, getDatesForMonth, formatDate } from '@/lib/date-utils';
+import type { Worker } from '@/types';
+import { getEffectiveDaysForWorkerInMonth } from '@/lib/date-utils';
 
-interface SalaryCalculation {
+interface CalculatedWageData {
+  workerId: string;
+  workerName: string;
   assignedSalary: number;
-  totalCalendarDaysInMonth: number;
-  effectiveCalendarDaysForWorker: number;
+  effectiveWorkingDaysInMonth: number;
+  totalPresents: number; // Equivalent full present days
+  totalLeaves: number; // Equivalent full leave days
+  calculatedGrossSalary: number;
+  totalMoneyTaken: number;
+  netPayableSalary: number;
   dailyRate: number;
-  baseEarnableSalaryForPeriod: number;
-  absentDays: number;
-  halfDays: number;
-  totalMoneyTakenThisMonth: number;
-  deductionForAbsence: number;
-  deductionForHalfDay: number;
-  netSalary: number;
-  totalPresentDays: number; 
 }
 
 export default function WageReport() {
@@ -33,95 +32,69 @@ export default function WageReport() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   useEffect(() => {
+    // Auto-select the first worker if none is selected and workers list is not empty
     if (workers.length > 0 && !selectedWorkerId) {
       setSelectedWorkerId(workers[0].id);
     }
-  }, [workers, selectedWorkerId]);
-
-  const selectedWorker = useMemo(() => {
-    return workers.find(w => w.id === selectedWorkerId);
-  }, [workers, selectedWorkerId]);
-
-  const salaryCalculation = useMemo((): SalaryCalculation | null => {
-    if (!selectedWorker) return null;
-
-    const year = currentMonth.getFullYear();
-    const monthNum = currentMonth.getMonth(); // 0-indexed
-
-    const workerAttendanceForMonth = attendanceRecords.filter(
-      record =>
-        record.workerId === selectedWorker.id &&
-        new Date(record.date).getFullYear() === year &&
-        new Date(record.date).getMonth() === monthNum
-    );
-
-    const totalCalendarDaysInMonth = getDatesForMonth(currentMonth.getFullYear(), monthNum).length;
-    
-    const totalMoneyTakenThisMonth = workerAttendanceForMonth
-        .reduce((sum, r) => sum + (r.moneyTakenAmount || 0), 0);
-
-    if (totalCalendarDaysInMonth === 0) {
-        return {
-            assignedSalary: selectedWorker.assignedSalary,
-            totalCalendarDaysInMonth: 0,
-            effectiveCalendarDaysForWorker: 0,
-            dailyRate: 0,
-            baseEarnableSalaryForPeriod: 0,
-            absentDays: 0, halfDays: 0,
-            totalMoneyTakenThisMonth: totalMoneyTakenThisMonth,
-            deductionForAbsence: 0, deductionForHalfDay: 0,
-            netSalary: 0 - totalMoneyTakenThisMonth,
-            totalPresentDays: 0,
-        };
+    // If the currently selected worker is removed from the list, reset selection
+    if (selectedWorkerId && !workers.find(w => w.id === selectedWorkerId)) {
+      setSelectedWorkerId(workers.length > 0 ? workers[0].id : null);
     }
+  }, [workers, selectedWorkerId]);
 
-    const dailyRate = selectedWorker.assignedSalary / totalCalendarDaysInMonth;
+  const calculatedWages: CalculatedWageData[] = useMemo(() => {
+    const daysInSelectedMonth = getDatesForMonth(currentMonth.getFullYear(), currentMonth.getMonth());
+    const totalCalendarDaysInMonth = daysInSelectedMonth.length;
 
-    const effectiveCalendarDaysForWorker = getEffectiveDaysForWorkerInMonth(currentMonth, selectedWorker.joinDate, selectedWorker.leftDate).length;
-    const baseEarnableSalaryForPeriod = dailyRate * effectiveCalendarDaysForWorker;
+    if (totalCalendarDaysInMonth === 0) return [];
 
-    const effectiveDatesForWorkerISO = getEffectiveDaysForWorkerInMonth(currentMonth, selectedWorker.joinDate, selectedWorker.leftDate).map(d => formatIsoDate(d));
+    return workers.map(worker => {
+      const effectiveDaysList = getEffectiveDaysForWorkerInMonth(currentMonth, worker.joinDate, worker.leftDate);
+      const effectiveDatesISO = new Set(effectiveDaysList.map(d => formatIsoDate(d)));
+      const effectiveWorkingDaysInMonthCount = effectiveDaysList.length;
 
-    const absentDays = workerAttendanceForMonth.filter(
-        r => r.status === 'absent' && effectiveDatesForWorkerISO.includes(r.date)
-    ).length;
+      const workerAttendanceInEffectivePeriod = attendanceRecords.filter(
+        record => record.workerId === worker.id && effectiveDatesISO.has(record.date)
+      );
 
-    const halfDays = workerAttendanceForMonth.filter(
-        r => r.status === 'half-day' && effectiveDatesForWorkerISO.includes(r.date)
-    ).length;
-    
-    let totalPresentDays = 0;
-    workerAttendanceForMonth.forEach(record => {
-      if (effectiveDatesForWorkerISO.includes(record.date)) {
+      let totalPresents = 0;
+      let totalLeaves = 0;
+      workerAttendanceInEffectivePeriod.forEach(record => {
         if (record.status === 'present') {
-          totalPresentDays += 1;
+          totalPresents += 1;
+        } else if (record.status === 'absent') {
+          totalLeaves += 1;
         } else if (record.status === 'half-day') {
-          totalPresentDays += 0.5;
+          totalPresents += 0.5;
+          totalLeaves += 0.5;
         }
-      }
+      });
+
+      const totalMoneyTaken = workerAttendanceInEffectivePeriod.reduce((sum, record) => sum + (record.moneyTakenAmount || 0), 0);
+      
+      const dailyRate = totalCalendarDaysInMonth > 0 ? worker.assignedSalary / totalCalendarDaysInMonth : 0;
+      
+      const calculatedGrossSalary = totalPresents * dailyRate;
+      const netPayableSalary = calculatedGrossSalary - totalMoneyTaken;
+
+      return {
+        workerId: worker.id,
+        workerName: worker.name,
+        assignedSalary: worker.assignedSalary,
+        effectiveWorkingDaysInMonth: effectiveWorkingDaysInMonthCount,
+        totalPresents,
+        totalLeaves,
+        calculatedGrossSalary,
+        totalMoneyTaken,
+        netPayableSalary,
+        dailyRate,
+      };
     });
+  }, [workers, attendanceRecords, currentMonth]);
 
-
-    const deductionForAbsence = absentDays * dailyRate;
-    const deductionForHalfDay = halfDays * (dailyRate / 2);
-    
-    const netSalary = baseEarnableSalaryForPeriod - deductionForAbsence - deductionForHalfDay - totalMoneyTakenThisMonth;
-    
-    return {
-      assignedSalary: selectedWorker.assignedSalary,
-      totalCalendarDaysInMonth,
-      effectiveCalendarDaysForWorker,
-      dailyRate,
-      baseEarnableSalaryForPeriod,
-      absentDays,
-      halfDays,
-      totalMoneyTakenThisMonth: totalMoneyTakenThisMonth,
-      deductionForAbsence,
-      deductionForHalfDay,
-      netSalary,
-      totalPresentDays,
-    };
-  }, [selectedWorker, attendanceRecords, currentMonth]);
+  const selectedWorkerWageData = useMemo(() => {
+    return calculatedWages.find(cw => cw.workerId === selectedWorkerId);
+  }, [selectedWorkerId, calculatedWages]);
 
   const changeMonth = (offset: number) => {
     setCurrentMonth(prev => {
@@ -130,9 +103,9 @@ export default function WageReport() {
       return newDate;
     });
   };
-  
+
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
   };
 
   if (workers.length === 0) {
@@ -148,7 +121,7 @@ export default function WageReport() {
       </Card>
     );
   }
-
+  
   return (
     <div className="space-y-6">
       <Card>
@@ -158,7 +131,7 @@ export default function WageReport() {
             <div className="w-full sm:w-auto">
               <Select onValueChange={setSelectedWorkerId} value={selectedWorkerId || undefined}>
                 <SelectTrigger className="w-full sm:w-[200px]">
-                  <SelectValue placeholder="Select Worker" />
+                  <SelectValue placeholder="Select Worker for Summary" />
                 </SelectTrigger>
                 <SelectContent>
                   {workers.map(worker => (
@@ -182,75 +155,111 @@ export default function WageReport() {
         </CardHeader>
       </Card>
 
-      {selectedWorkerId && selectedWorker && salaryCalculation ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Wage Calculation for {selectedWorker.name}</CardTitle>
-            <CardDescription>{getMonthYearString(currentMonth)}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableBody>
-                <TableRow>
-                  <TableCell className="font-medium">Assigned Monthly Salary</TableCell>
-                  <TableCell className="text-right">{formatCurrency(salaryCalculation.assignedSalary)}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>Total Calendar Days in Month</TableCell>
-                  <TableCell className="text-right">{salaryCalculation.totalCalendarDaysInMonth}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>Calculated Daily Rate</TableCell>
-                  <TableCell className="text-right">{formatCurrency(salaryCalculation.dailyRate)}</TableCell>
-                </TableRow>
-                 <TableRow>
-                  <TableCell>Effective Calendar Days for Worker</TableCell>
-                  <TableCell className="text-right">{salaryCalculation.effectiveCalendarDaysForWorker}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="font-semibold">Base Earnable Salary for Period</TableCell>
-                  <TableCell className="text-right font-semibold">{formatCurrency(salaryCalculation.baseEarnableSalaryForPeriod)}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>Total Present Days (Equivalent, within effective period)</TableCell>
-                  <TableCell className="text-right">{salaryCalculation.totalPresentDays}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>Absent Days (within effective period)</TableCell>
-                  <TableCell className="text-right">{salaryCalculation.absentDays}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>Half-Day Leaves (within effective period)</TableCell>
-                  <TableCell className="text-right">{salaryCalculation.halfDays}</TableCell>
-                </TableRow>
-                <TableRow className="text-destructive">
-                  <TableCell>Deduction for Absence</TableCell>
-                  <TableCell className="text-right">-{formatCurrency(salaryCalculation.deductionForAbsence)}</TableCell>
-                </TableRow>
-                <TableRow className="text-destructive">
-                  <TableCell>Deduction for Half-Days</TableCell>
-                  <TableCell className="text-right">-{formatCurrency(salaryCalculation.deductionForHalfDay)}</TableCell>
-                </TableRow>
-                <TableRow className="text-destructive">
-                  <TableCell>Total Money Taken This Month</TableCell>
-                  <TableCell className="text-right">-{formatCurrency(salaryCalculation.totalMoneyTakenThisMonth)}</TableCell>
-                </TableRow>
-                <TableRow className={`font-bold text-lg ${salaryCalculation.netSalary < 0 ? 'text-destructive' : 'text-foreground'} bg-muted`}>
-                  <TableCell>Net Payable Salary</TableCell>
-                  <TableCell className="text-right">{formatCurrency(salaryCalculation.netSalary)}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-           <CardContent className="pt-6 text-center">
-             <IndianRupee className="mx-auto h-12 w-12 text-muted-foreground" />
-            <p className="mt-2 text-sm text-muted-foreground">Select a worker and month to view their wage calculation.</p>
-          </CardContent>
-        </Card>
-      )}
+      <div className="grid gap-6 md:grid-cols-3">
+        <div className="md:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Wage Calculation Details for {getMonthYearString(currentMonth)}</CardTitle>
+              <CardDescription>View detailed wage calculations for all workers for the selected month.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {calculatedWages.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Worker</TableHead>
+                        <TableHead className="text-right">Assigned Salary</TableHead>
+                        <TableHead className="text-right">Effective Days</TableHead>
+                        <TableHead className="text-right">Presents (Eq.)</TableHead>
+                        <TableHead className="text-right">Gross Salary</TableHead>
+                        <TableHead className="text-right">Money Taken</TableHead>
+                        <TableHead className="text-right">Net Payable</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {calculatedWages.map(data => (
+                        <TableRow key={data.workerId} onClick={() => setSelectedWorkerId(data.workerId)} className={selectedWorkerId === data.workerId ? "bg-muted cursor-pointer" : "cursor-pointer hover:bg-muted/50"}>
+                          <TableCell className="font-medium">{data.workerName}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(data.assignedSalary)}</TableCell>
+                          <TableCell className="text-right">{data.effectiveWorkingDaysInMonth}</TableCell>
+                          <TableCell className="text-right">{data.totalPresents}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(data.calculatedGrossSalary)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(data.totalMoneyTaken)}</TableCell>
+                          <TableCell className="text-right font-semibold">{formatCurrency(data.netPayableSalary)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-center text-muted-foreground py-4">No wage data to display for the selected month or no workers found.</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="md:col-span-1">
+          {selectedWorkerWageData ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Summary for {selectedWorkerWageData.workerName}</CardTitle>
+                <CardDescription>{getMonthYearString(currentMonth)}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <SummaryItem icon={IndianRupee} label="Assigned Monthly Salary" value={formatCurrency(selectedWorkerWageData.assignedSalary)} />
+                <SummaryItem icon={FileText} label="Effective Days This Month" value={`${selectedWorkerWageData.effectiveWorkingDaysInMonth} days`} />
+                <SummaryItem icon={TrendingUp} label="Days Present (Equivalent)" value={`${selectedWorkerWageData.totalPresents} days`} />
+                <SummaryItem icon={TrendingDown} label="Days Absent/Leave (Equivalent)" value={`${selectedWorkerWageData.totalLeaves} days`} />
+                <hr className="my-2 border-border" />
+                <SummaryItem icon={IndianRupee} label="Calculated Gross Salary" value={formatCurrency(selectedWorkerWageData.calculatedGrossSalary)} />
+                <SummaryItem icon={IndianRupee} label="Total Money Taken" value={formatCurrency(selectedWorkerWageData.totalMoneyTaken)} className="text-destructive" />
+                <hr className="my-2 border-border" />
+                <SummaryItem icon={IndianRupee} label="Net Payable Salary" value={formatCurrency(selectedWorkerWageData.netPayableSalary)} className="font-bold text-lg" />
+                 <div className="text-xs text-muted-foreground pt-2">
+                  Daily rate (calendar): {formatCurrency(selectedWorkerWageData.dailyRate)}
+                </div>
+                {workers.find(w=>w.id === selectedWorkerId)?.joinDate && 
+                  <div className="text-xs text-muted-foreground pt-1">
+                    Joined: {formatDate(workers.find(w=>w.id === selectedWorkerId)!.joinDate, "PP")}
+                  </div>
+                }
+                 {workers.find(w=>w.id === selectedWorkerId)?.leftDate && 
+                  <div className="text-xs text-muted-foreground pt-1">
+                    Left: {formatDate(workers.find(w=>w.id === selectedWorkerId)!.leftDate!, "PP")}
+                  </div>
+                }
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="pt-6 text-center">
+                 <IndianRupee className="mx-auto h-12 w-12 text-muted-foreground" />
+                <p className="mt-2 text-sm text-muted-foreground">Select a worker to view their wage summary for {getMonthYearString(currentMonth)}.</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
+
+interface SummaryItemProps {
+  icon: React.ElementType;
+  label: string;
+  value: string | number;
+  className?: string;
+}
+
+const SummaryItem: React.FC<SummaryItemProps> = ({ icon: Icon, label, value, className }) => (
+  <div className={`flex items-center justify-between ${className}`}>
+    <div className="flex items-center text-sm text-muted-foreground">
+      <Icon className="h-4 w-4 mr-2 shrink-0" />
+      <span>{label}:</span>
+    </div>
+    <span className="text-sm font-medium text-foreground">{value}</span>
+  </div>
+);
+
+    
