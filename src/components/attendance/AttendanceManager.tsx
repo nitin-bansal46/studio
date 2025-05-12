@@ -18,7 +18,7 @@ import { ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import MonthYearPicker from '@/components/shared/MonthYearPicker';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { parseISO, isBefore, startOfDay } from 'date-fns';
+import { parseISO, isBefore, startOfDay, isAfter } from 'date-fns';
 
 const attendanceStatuses: AttendanceStatus[] = ['present', 'absent', 'half-day'];
 
@@ -30,7 +30,7 @@ export default function AttendanceManager() {
   const [currentDate, setCurrentDate] = useState(new Date()); 
   const [moneyTakenAmounts, setMoneyTakenAmounts] = useState<Record<string, number | undefined>>({});
   
-  const today = useMemo(() => new Date(), []);
+  const today = useMemo(() => startOfDay(new Date()), []);
 
   useEffect(() => {
     if (workers.length > 0 && !selectedWorkerId) {
@@ -120,22 +120,28 @@ export default function AttendanceManager() {
       .filter(r => r.workerId === selectedWorker.id && new Date(r.date).getFullYear() === year && new Date(r.date).getMonth() === monthNum)
       .reduce((sum, r) => sum + (r.moneyTakenAmount || 0), 0);
     
+    const daysWorkedOrEffectiveUpToTodayOrEndOfMonth = getEffectiveDaysForWorkerInMonth(
+        currentDate, 
+        selectedWorker.joinDate, 
+        selectedWorker.leftDate
+      ).filter(d => !isAfter(startOfDay(d), today)); // Only count days up to and including today for "earnable" salary so far
+
     const totalCalendarDaysInMonth = getDatesForMonth(currentDate.getFullYear(), monthNum).length;
     const dailyRate = totalCalendarDaysInMonth > 0 ? selectedWorker.assignedSalary / totalCalendarDaysInMonth : 0;
 
-    const effectiveDaysInSelectedMonth = getEffectiveDaysForWorkerInMonth(currentDate, selectedWorker.joinDate, selectedWorker.leftDate).length;
-    const baseEarnableSalaryForSelectedMonth = dailyRate * effectiveDaysInSelectedMonth;
+    const baseEarnableSalarySoFar = dailyRate * daysWorkedOrEffectiveUpToTodayOrEndOfMonth.length;
     
-    const remainingSalary = baseEarnableSalaryForSelectedMonth - totalMoneyTakenThisMonth;
+    const remainingSalary = baseEarnableSalarySoFar - totalMoneyTakenThisMonth;
 
     return {
       totalMoneyTakenThisMonth: totalMoneyTakenThisMonth.toFixed(2),
       dailyRate: dailyRate.toFixed(2),
       remainingSalary: remainingSalary.toFixed(2),
       assignedSalary: selectedWorker.assignedSalary.toFixed(2),
-      baseEarnableSalaryForSelectedMonth: baseEarnableSalaryForSelectedMonth.toFixed(2),
+      baseEarnableSalarySoFar: baseEarnableSalarySoFar.toFixed(2),
+      daysCountedForEarnable: daysWorkedOrEffectiveUpToTodayOrEndOfMonth.length,
     };
-  }, [selectedWorker, attendanceRecords, currentDate]);
+  }, [selectedWorker, attendanceRecords, currentDate, today]);
 
 
   const changeMonth = (offset: number) => {
@@ -228,7 +234,18 @@ export default function AttendanceManager() {
                   const isTodayRow = isCurrentMonthAndYear && isSameDay(date, today);
 
                   const workerJoinDateObj = selectedWorker ? parseISO(selectedWorker.joinDate) : null;
-                  const isDateDisabled = workerJoinDateObj ? isBefore(startOfDay(date), startOfDay(workerJoinDateObj)) : false;
+                  const dateAsStartOfDay = startOfDay(date);
+
+                  let isDateDisabled = false;
+                  let disabledReasonText = '';
+
+                  if (workerJoinDateObj && isBefore(dateAsStartOfDay, startOfDay(workerJoinDateObj))) {
+                    isDateDisabled = true;
+                    disabledReasonText = '(Before Join Date)';
+                  } else if (isAfter(dateAsStartOfDay, today)) {
+                    isDateDisabled = true;
+                    disabledReasonText = '(Future Date)';
+                  }
 
 
                   return (
@@ -242,7 +259,7 @@ export default function AttendanceManager() {
                       <TableCell className={cn("whitespace-nowrap py-3", isTodayRow && "font-semibold")}>
                         {formatDate(date, 'EEE, MMM d')}
                         {isTodayRow && <span className="ml-2 text-xs text-primary font-medium">(Today)</span>}
-                        {isDateDisabled && <span className="ml-2 text-xs text-muted-foreground font-medium">(Before Join Date)</span>}
+                        {disabledReasonText && <span className="ml-2 text-xs text-muted-foreground font-medium">{disabledReasonText}</span>}
                       </TableCell>
                       <TableCell className="py-3">
                         <RadioGroup
@@ -294,12 +311,12 @@ export default function AttendanceManager() {
                             </PopoverTrigger>
                              {getMoneyTakenStats && (
                                 <PopoverContent className="w-auto text-sm p-3 space-y-1.5">
-                                  <p className="font-medium">Monthly Salary Stats for {getMonthYearString(currentDate)}</p>
-                                  <p>Assigned Salary: <span className="font-semibold">₹{getMoneyTakenStats.assignedSalary}</span></p>
-                                  <p>Daily Rate (calendar days): <span className="font-semibold">₹{getMoneyTakenStats.dailyRate}</span></p>
-                                  <p>Base Earnable (this month): <span className="font-semibold">₹{getMoneyTakenStats.baseEarnableSalaryForSelectedMonth}</span></p>
+                                  <p className="font-medium">Salary Stats for {getMonthYearString(currentDate)}</p>
+                                  <p>Assigned Monthly: <span className="font-semibold">₹{getMoneyTakenStats.assignedSalary}</span></p>
+                                  <p>Daily Rate (calendar): <span className="font-semibold">₹{getMoneyTakenStats.dailyRate}</span></p>
+                                  <p>Earnable so far ({getMoneyTakenStats.daysCountedForEarnable} days): <span className="font-semibold">₹{getMoneyTakenStats.baseEarnableSalarySoFar}</span></p>
                                   <p>Total Money Taken: <span className="font-semibold">₹{getMoneyTakenStats.totalMoneyTakenThisMonth}</span></p>
-                                  <p>Remaining Payable: <span className="font-semibold">₹{getMoneyTakenStats.remainingSalary}</span></p>
+                                  <p>Remaining Payable (so far): <span className="font-semibold">₹{getMoneyTakenStats.remainingSalary}</span></p>
                                 </PopoverContent>
                               )}
                            </Popover>
