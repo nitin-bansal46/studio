@@ -58,9 +58,10 @@ export default function LeaveReport() {
 
 
   const leaveData = useMemo(() => {
-    if (!selectedWorker) return { totalLeaves: 0, halfDayLeaves: 0, fullDayAbsences: 0, presentDays: 0, calendarDaysInMonth: 0 };
+    if (!selectedWorker) return { totalLeaves: 0, halfDayLeaves: 0, fullDayAbsences: 0, presentDays: 0, effectiveWorkingDaysInMonth: 0 };
 
-    const effectiveDatesISO = getEffectiveDaysForWorkerInMonth(currentMonth, selectedWorker.joinDate, selectedWorker.leftDate).map(d => formatIsoDate(d));
+    const effectiveDaysList = getEffectiveDaysForWorkerInMonth(currentMonth, selectedWorker.joinDate, selectedWorker.leftDate);
+    const effectiveDatesISO = effectiveDaysList.map(d => formatIsoDate(d));
 
     let totalLeaves = 0;
     let halfDayLeaves = 0;
@@ -83,9 +84,7 @@ export default function LeaveReport() {
       }
     });
     
-    const calendarDaysInMonth = getDatesForMonth(currentMonth.getFullYear(), currentMonth.getMonth()).length;
-
-    return { totalLeaves, halfDayLeaves, fullDayAbsences, presentDays, calendarDaysInMonth };
+    return { totalLeaves, halfDayLeaves, fullDayAbsences, presentDays, effectiveWorkingDaysInMonth: effectiveDaysList.length };
   }, [workerAttendanceForMonth, currentMonth, selectedWorker]);
 
 
@@ -113,7 +112,7 @@ export default function LeaveReport() {
   const calendarModifiersStyles = {
     absent: { backgroundColor: 'hsl(var(--destructive))', color: 'hsl(var(--destructive-foreground))', borderRadius: '0.25rem' },
     halfDay: { backgroundColor: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))', borderRadius: '0.25rem', opacity: 0.8 },
-    present: { backgroundColor: 'hsl(130, 50%, 88%)', color: 'hsl(130, 40%, 30%)', borderRadius: '0.25rem' }, // Light green background, dark green text
+    present: { backgroundColor: 'hsl(130, 50%, 88%)', color: 'hsl(130, 40%, 30%)', borderRadius: '0.25rem' }, 
     beforeJoinDate: { opacity: 0.5, backgroundColor: 'hsl(var(--muted))', pointerEvents: 'none' as 'none', borderRadius: '0.25rem', color: 'hsl(var(--muted-foreground))' },
   };
   
@@ -196,15 +195,49 @@ export default function LeaveReport() {
           <Card className="md:col-span-1">
             <CardHeader>
               <CardTitle>Summary for {selectedWorker.name}</CardTitle>
-              <CardDescription>{getMonthYearString(currentMonth)}</CardDescription>
+              <CardDescription>
+                {getMonthYearString(currentMonth)}.
+                <br className="sm:hidden"/> All figures are for the worker&apos;s effective days.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between"><span>Total Leaves (within effective period):</span> <span className="font-semibold">{leaveData.totalLeaves} days</span></div>
-              <div className="flex justify-between"><span>Full Day Absences (within effective period):</span> <span className="font-semibold">{leaveData.fullDayAbsences} days</span></div>
-              <div className="flex justify-between"><span>Half-Day Leaves (within effective period):</span> <span className="font-semibold">{leaveData.halfDayLeaves} days</span></div>
-              <div className="flex justify-between"><span>Present Days (equiv., within effective period):</span> <span className="font-semibold">{leaveData.presentDays} days</span></div>
-              <div className="flex justify-between"><span>Calendar Days in Month:</span> <span className="font-semibold">{leaveData.calendarDaysInMonth} days</span></div>
-              {joinDateObj && <div className="text-xs text-muted-foreground">Joined: {formatDate(joinDateObj, 'PP')}</div>}
+            <CardContent className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Total Leaves:</span>
+                <span className="font-semibold text-sm">{leaveData.totalLeaves} days</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Full Day Absences:</span>
+                <span className="font-semibold text-sm">{leaveData.fullDayAbsences} days</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Half-Day Leaves:</span>
+                <span className="font-semibold text-sm">{leaveData.halfDayLeaves} days</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Equivalent Present Days:</span>
+                <span className="font-semibold text-sm">{leaveData.presentDays} days</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Effective Days This Month:</span>
+                <span className="font-semibold text-sm">{leaveData.effectiveWorkingDaysInMonth} days</span>
+              </div>
+              
+              {(selectedWorker.joinDate || selectedWorker.leftDate) && (
+                <div className="pt-2 mt-2 border-t border-border">
+                  {selectedWorker.joinDate && (
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-muted-foreground">Joined:</span>
+                      <span className="font-medium text-foreground">{formatDate(selectedWorker.joinDate, 'PP')}</span>
+                    </div>
+                  )}
+                  {selectedWorker.leftDate && (
+                    <div className={`flex justify-between items-center text-xs ${selectedWorker.joinDate ? "mt-1" : ""}`}>
+                      <span className="text-muted-foreground">Left:</span>
+                      <span className="font-medium text-foreground">{formatDate(selectedWorker.leftDate, 'PP')}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
           <Card className="md:col-span-2">
