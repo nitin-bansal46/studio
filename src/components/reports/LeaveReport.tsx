@@ -123,24 +123,28 @@ export default function LeaveReport() {
     { label: 'Before Join Date', style: { ...calendarModifiersStyles.beforeJoinDate, backgroundColor: 'hsl(var(--muted))' } },
   ];
 
-  const CustomDayContent = (props: DayContentProps) => {
-    const record = workerAttendanceForMonth.find(r => customIsSameDay(parseISO(r.date), props.date));
-    const moneyTaken = record?.moneyTakenAmount;
-    const isDayBeforeJoining = joinDateObj ? isBefore(startOfDay(props.date), joinDateObj) : false;
-    
-    const showMoney = moneyTaken && moneyTaken > 0 && !props.outside && !isDayBeforeJoining;
+interface ExtendedDayContentProps extends DayContentProps {
+  outside?: boolean;
+}
 
-    return (
-      <div className="relative w-full h-full flex flex-col items-center justify-center">
-        <span>{formatDateFn(props.date, 'd')}</span>
-        {showMoney && (
-          <span className="absolute top-0.5 right-0.5 text-[10px] font-semibold px-1 bg-background/90 text-foreground rounded-sm shadow leading-none">
-            ₹{moneyTaken}
-          </span>
-        )}
-      </div>
-    );
-  };
+const CustomDayContent = (props: ExtendedDayContentProps) => {
+  const record = workerAttendanceForMonth.find(r => customIsSameDay(parseISO(r.date), props.date));
+  const moneyTaken = record?.moneyTakenAmount;
+  const isDayBeforeJoining = joinDateObj ? isBefore(startOfDay(props.date), joinDateObj) : false;
+
+  const showMoney = moneyTaken && moneyTaken > 0 && !props.outside && !isDayBeforeJoining;
+
+  return (
+    <div className="relative w-full h-full flex flex-col items-center justify-center">
+      <span>{formatDateFn(props.date, 'd')}</span>
+      {showMoney && (
+        <span className="absolute top-0.5 right-0.5 text-[10px] font-semibold px-1 bg-background/90 text-foreground rounded-sm shadow leading-none">
+          ₹{moneyTaken}
+        </span>
+      )}
+    </div>
+  );
+};
 
 
   if (workers.length === 0) {
