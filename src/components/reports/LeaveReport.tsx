@@ -6,13 +6,13 @@ import { useAppContext } from '@/contexts/AppContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
-import { formatIsoDate, getMonthYearString, formatDate, getDatesForMonth, isSameDay as customIsSameDay } from '@/lib/date-utils';
+import { formatIsoDate, getMonthYearString, formatDate, getDatesForMonth, isSameDay as customIsSameDay, getEffectiveDaysForWorkerInMonth } from '@/lib/date-utils';
 import type { AttendanceRecord, Worker } from '@/types';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Users, CalendarDays } from 'lucide-react';
 import MonthYearPicker from '@/components/shared/MonthYearPicker';
-import { parseISO, isBefore, startOfDay, isValid, format as formatDateFn } from 'date-fns'; // Added imports
-import type { DayPicker, DayContentProps } from 'react-day-picker'; // For DayContentProps type
+import { parseISO, isBefore, startOfDay, isValid, format as formatDateFn } from 'date-fns';
+import type { DayPicker, DayContentProps } from 'react-day-picker';
 
 
 export default function LeaveReport() {
@@ -58,21 +58,36 @@ export default function LeaveReport() {
 
 
   const leaveData = useMemo(() => {
-    const totalLeaves = workerAttendanceForMonth.reduce((acc, record) => {
-      if (record.status === 'absent') return acc + 1;
-      if (record.status === 'half-day') return acc + 0.5;
-      return acc;
-    }, 0);
-    const halfDayLeaves = workerAttendanceForMonth.filter(r => r.status === 'half-day').length;
-    const fullDayAbsences = workerAttendanceForMonth.filter(r => r.status === 'absent').length;
+    if (!selectedWorker) return { totalLeaves: 0, halfDayLeaves: 0, fullDayAbsences: 0, presentDays: 0, calendarDaysInMonth: 0 };
+
+    const effectiveDatesISO = getEffectiveDaysForWorkerInMonth(currentMonth, selectedWorker.joinDate, selectedWorker.leftDate).map(d => formatIsoDate(d));
+
+    let totalLeaves = 0;
+    let halfDayLeaves = 0;
+    let fullDayAbsences = 0;
+    let presentDays = 0;
+
+    workerAttendanceForMonth.forEach(record => {
+      // Only count if the record's date is within the worker's effective working period for the month
+      if (effectiveDatesISO.includes(record.date)) {
+        if (record.status === 'absent') {
+          fullDayAbsences += 1;
+          totalLeaves += 1;
+        } else if (record.status === 'half-day') {
+          halfDayLeaves += 1;
+          totalLeaves += 0.5;
+          presentDays += 0.5; 
+        } else if (record.status === 'present') {
+          presentDays += 1;
+        }
+      }
+    });
     
     const calendarDaysInMonth = getDatesForMonth(currentMonth.getFullYear(), currentMonth.getMonth()).length;
-    const presentDays = workerAttendanceForMonth.filter(r => r.status === 'present').length + 
-                        workerAttendanceForMonth.filter(r => r.status === 'half-day').length * 0.5;
-
 
     return { totalLeaves, halfDayLeaves, fullDayAbsences, presentDays, calendarDaysInMonth };
-  }, [workerAttendanceForMonth, currentMonth]);
+  }, [workerAttendanceForMonth, currentMonth, selectedWorker]);
+
 
   const changeMonth = (offset: number) => {
     setCurrentMonth(prev => {
@@ -98,7 +113,7 @@ export default function LeaveReport() {
   const calendarModifiersStyles = {
     absent: { backgroundColor: 'hsl(var(--destructive))', color: 'hsl(var(--destructive-foreground))', borderRadius: '0.25rem' },
     halfDay: { backgroundColor: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))', borderRadius: '0.25rem', opacity: 0.8 },
-    present: { backgroundColor: 'hsl(var(--chart-2))', color: 'hsl(var(--primary-foreground))', borderRadius: '0.25rem' },
+    present: { backgroundColor: 'hsl(130, 50%, 88%)', color: 'hsl(130, 40%, 30%)', borderRadius: '0.25rem' }, // Light green background, dark green text
     beforeJoinDate: { opacity: 0.5, backgroundColor: 'hsl(var(--muted))', pointerEvents: 'none' as 'none', borderRadius: '0.25rem', color: 'hsl(var(--muted-foreground))' },
   };
   
@@ -184,10 +199,10 @@ export default function LeaveReport() {
               <CardDescription>{getMonthYearString(currentMonth)}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex justify-between"><span>Total Leaves:</span> <span className="font-semibold">{leaveData.totalLeaves} days</span></div>
-              <div className="flex justify-between"><span>Full Day Absences:</span> <span className="font-semibold">{leaveData.fullDayAbsences} days</span></div>
-              <div className="flex justify-between"><span>Half-Day Leaves:</span> <span className="font-semibold">{leaveData.halfDayLeaves} days</span></div>
-              <div className="flex justify-between"><span>Present Days (equiv.):</span> <span className="font-semibold">{leaveData.presentDays} days</span></div>
+              <div className="flex justify-between"><span>Total Leaves (within effective period):</span> <span className="font-semibold">{leaveData.totalLeaves} days</span></div>
+              <div className="flex justify-between"><span>Full Day Absences (within effective period):</span> <span className="font-semibold">{leaveData.fullDayAbsences} days</span></div>
+              <div className="flex justify-between"><span>Half-Day Leaves (within effective period):</span> <span className="font-semibold">{leaveData.halfDayLeaves} days</span></div>
+              <div className="flex justify-between"><span>Present Days (equiv., within effective period):</span> <span className="font-semibold">{leaveData.presentDays} days</span></div>
               <div className="flex justify-between"><span>Calendar Days in Month:</span> <span className="font-semibold">{leaveData.calendarDaysInMonth} days</span></div>
               {joinDateObj && <div className="text-xs text-muted-foreground">Joined: {formatDate(joinDateObj, 'PP')}</div>}
             </CardContent>
@@ -216,15 +231,13 @@ export default function LeaveReport() {
                 modifiers={calendarModifiers}
                 modifiersStyles={calendarModifiersStyles}
                 components={{ DayContent: CustomDayContent }}
-                className="rounded-md border p-2" // Increased padding
+                className="rounded-md border p-2" 
                 classNames={{
                     day_selected: '', 
                     day_today: 'bg-primary/10 text-primary ring-1 ring-primary rounded-md',
                     day_outside: 'text-muted-foreground opacity-50',
-                    // Increased cell and day size for better visibility
                     cell: 'h-12 w-12 text-center text-sm p-0 relative first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20',
                     day: 'h-12 w-12 p-0 font-normal aria-selected:opacity-100',
-                    // Ensure captions and navigation buttons have clear text
                     caption_label: "text-foreground font-medium",
                     nav_button: "text-foreground hover:text-accent-foreground",
                 }}
