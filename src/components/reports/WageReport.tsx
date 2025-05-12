@@ -13,6 +13,7 @@ import { formatIsoDate, getMonthYearString, getDatesForMonth, formatDate } from 
 import type { Worker } from '@/types';
 import { getEffectiveDaysForWorkerInMonth } from '@/lib/date-utils';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 interface CalculatedWageData {
   workerId: string;
@@ -181,7 +182,10 @@ export default function WageReport() {
                         <TableRow 
                           key={data.workerId} 
                           onClick={() => setSelectedWorkerId(data.workerId)} 
-                          className={selectedWorkerId === data.workerId ? "bg-muted cursor-pointer" : "cursor-pointer hover:bg-muted/50"}
+                          className={cn(
+                            "cursor-pointer hover:bg-muted/50",
+                            selectedWorkerId === data.workerId && "bg-muted"
+                          )}
                           aria-selected={selectedWorkerId === data.workerId}
                         >
                           <TableCell className="font-medium">{data.workerName}</TableCell>
@@ -190,7 +194,14 @@ export default function WageReport() {
                           <TableCell className="text-right">{data.totalPresents}</TableCell>
                           <TableCell className="text-right">{formatCurrency(data.calculatedGrossSalary)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(data.totalMoneyTaken)}</TableCell>
-                          <TableCell className="text-right font-semibold text-base">{formatCurrency(data.netPayableSalary)}</TableCell>
+                          <TableCell 
+                            className={cn(
+                              "text-right font-semibold text-base",
+                              data.netPayableSalary < 0 ? "text-destructive" : "text-primary"
+                            )}
+                          >
+                            {formatCurrency(data.netPayableSalary)}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -222,7 +233,16 @@ export default function WageReport() {
                     <TableRow>
                         <TableCell colSpan={2} className="p-0"><Separator className="my-2" /></TableCell>
                     </TableRow>
-                    <SummaryTableRow icon={IndianRupee} label="Net Payable Salary" value={formatCurrency(selectedWorkerWageData.netPayableSalary)} labelClassName="font-semibold" valueClassName="font-bold text-lg text-primary" />
+                    <SummaryTableRow 
+                      icon={IndianRupee} 
+                      label="Net Payable Salary" 
+                      value={formatCurrency(selectedWorkerWageData.netPayableSalary)} 
+                      labelClassName="font-semibold" 
+                      valueClassName={cn(
+                        "font-bold text-lg",
+                        selectedWorkerWageData.netPayableSalary < 0 ? "text-destructive" : "text-primary"
+                      )}
+                    />
                   </TableBody>
                 </Table>
                 
@@ -265,15 +285,16 @@ interface SummaryTableRowProps {
 
 const SummaryTableRow: React.FC<SummaryTableRowProps> = ({ icon: Icon, label, value, labelClassName, valueClassName }) => (
   <TableRow>
-    <TableCell className={`py-2 px-3 ${labelClassName}`}>
+    <TableCell className={cn("py-2 px-3", labelClassName)}>
       <div className="flex items-center text-sm text-muted-foreground">
         <Icon className="h-4 w-4 mr-2 shrink-0" />
         {label}:
       </div>
     </TableCell>
-    <TableCell className={`text-right py-2 px-3 text-sm font-medium text-foreground ${valueClassName}`}>
+    <TableCell className={cn("text-right py-2 px-3 text-sm font-medium text-foreground", valueClassName)}>
       {value}
     </TableCell>
   </TableRow>
 );
     
+
