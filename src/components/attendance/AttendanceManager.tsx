@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { formatIsoDate, getDatesForMonth, formatDate, isSameDay, getMonthYearString, getEffectiveDaysForWorkerInMonth } from '@/lib/date-utils';
 import type { AttendanceRecord, AttendanceStatus } from '@/types';
-import { ChevronLeft, ChevronRight, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, Info } from 'lucide-react';
 import MonthYearPicker from '@/components/shared/MonthYearPicker';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -157,16 +157,16 @@ export default function AttendanceManager() {
       ).filter(d => !isAfter(startOfDay(d), today));
 
     const totalCalendarDaysInMonth = getDatesForMonth(currentDate.getFullYear(), monthNum).length;
-    const dailyRate = totalCalendarDaysInMonth > 0 ? selectedWorker.assignedSalary / totalCalendarDaysInMonth : 0;
+    const dailyWage = totalCalendarDaysInMonth > 0 ? selectedWorker.assignedSalary / totalCalendarDaysInMonth : 0;
     
     // Base earnable salary is based on the number of effective days worked so far in the month
-    const baseEarnableSalarySoFar = dailyRate * effectiveDaysForWorkerInMonthSoFar.length;
+    const baseEarnableSalarySoFar = dailyWage * effectiveDaysForWorkerInMonthSoFar.length;
     
     const remainingSalary = baseEarnableSalarySoFar - totalMoneyTakenThisMonth;
 
     return {
       totalMoneyTakenThisMonth: totalMoneyTakenThisMonth.toFixed(2),
-      dailyRate: dailyRate.toFixed(2),
+      dailyWage: dailyWage.toFixed(2),
       remainingSalary: remainingSalary.toFixed(2),
       assignedSalary: selectedWorker.assignedSalary.toFixed(2),
       baseEarnableSalarySoFar: baseEarnableSalarySoFar.toFixed(2),
@@ -317,37 +317,42 @@ export default function AttendanceManager() {
                         <div className="flex items-center gap-2">
                            <Popover>
                             <PopoverTrigger asChild>
-                                <Input
-                                    type="number"
-                                    step="any"
-                                    placeholder="0"
-                                    value={isDateDisabled ? '' : moneyInputValue} // Clear input for future dates
-                                    onChange={(e) => {
-                                        if (!isDateDisabled) {
-                                           const val = e.target.value;
-                                           setMoneyTakenAmounts(prev => ({ 
-                                               ...prev, 
-                                               [isoDate]: val === '' ? undefined : parseFloat(val) 
-                                            }));
-                                        }
-                                    }}
-                                    onBlur={(e) => { 
-                                        if (!isDateDisabled) {
-                                           handleMoneyUpdateOnBlur(isoDate, e.target.value);
-                                        }
-                                    }}
-                                    className="w-[120px] h-8 text-sm"
-                                    disabled={isDateDisabled}
-                                />
+                                <Button variant="outline" size="sm" className="h-8 px-2 py-1" disabled={isDateDisabled}>
+                                    <Input
+                                        type="number"
+                                        step="any"
+                                        placeholder="0"
+                                        value={isDateDisabled ? '' : moneyInputValue} // Clear input for future dates
+                                        onChange={(e) => {
+                                            if (!isDateDisabled) {
+                                               const val = e.target.value;
+                                               setMoneyTakenAmounts(prev => ({ 
+                                                   ...prev, 
+                                                   [isoDate]: val === '' ? undefined : parseFloat(val) 
+                                                }));
+                                            }
+                                        }}
+                                        onBlur={(e) => { 
+                                            if (!isDateDisabled) {
+                                               handleMoneyUpdateOnBlur(isoDate, e.target.value);
+                                            }
+                                        }}
+                                        className="w-[90px] h-full text-sm border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                                        disabled={isDateDisabled}
+                                    />
+                                    {!isDateDisabled && <Info className="h-3 w-3 text-muted-foreground ml-1" />}
+                                </Button>
                             </PopoverTrigger>
                              {getMoneyTakenStats && !isDateDisabled && ( // Only show popover for non-disabled dates
-                                <PopoverContent className="w-auto text-sm p-3 space-y-1.5">
-                                  <p className="font-medium">Salary Stats for {getMonthYearString(currentDate)}</p>
-                                  <p>Assigned Monthly: <span className="font-semibold">₹{getMoneyTakenStats.assignedSalary}</span></p>
-                                  <p>Daily Rate (calendar): <span className="font-semibold">₹{getMoneyTakenStats.dailyRate}</span></p>
-                                  <p>Earnable so far ({getMoneyTakenStats.daysCountedForEarnable} days): <span className="font-semibold">₹{getMoneyTakenStats.baseEarnableSalarySoFar}</span></p>
-                                  <p>Total Money Taken: <span className="font-semibold">₹{getMoneyTakenStats.totalMoneyTakenThisMonth}</span></p>
-                                  <p>Remaining Payable (so far): <span className="font-semibold">₹{getMoneyTakenStats.remainingSalary}</span></p>
+                                <PopoverContent className="w-auto text-sm p-4 space-y-2 shadow-xl rounded-lg border">
+                                  <p className="font-semibold text-base text-foreground">Salary Stats for {getMonthYearString(currentDate)}</p>
+                                  <div className="space-y-1 text-muted-foreground">
+                                    <p>Assigned Monthly: <span className="font-semibold text-foreground">₹{getMoneyTakenStats.assignedSalary}</span></p>
+                                    <p>Daily Wage (calendar): <span className="font-semibold text-foreground">₹{getMoneyTakenStats.dailyWage}</span></p>
+                                    <p>Earnable so far ({getMoneyTakenStats.daysCountedForEarnable} days): <span className="font-semibold text-foreground">₹{getMoneyTakenStats.baseEarnableSalarySoFar}</span></p>
+                                    <p>Total Money Taken: <span className="font-semibold text-foreground">₹{getMoneyTakenStats.totalMoneyTakenThisMonth}</span></p>
+                                    <p className="mt-1 pt-1 border-t">Remaining Payable (so far): <span className="font-bold text-lg text-primary">₹{getMoneyTakenStats.remainingSalary}</span></p>
+                                  </div>
                                 </PopoverContent>
                               )}
                            </Popover>

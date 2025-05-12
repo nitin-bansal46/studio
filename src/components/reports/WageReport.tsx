@@ -7,11 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Users, IndianRupee, TrendingUp, TrendingDown, FileText } from 'lucide-react'; // Added more icons
+import { ChevronLeft, ChevronRight, Users, IndianRupee, TrendingUp, TrendingDown, FileText, CalendarDays, UserCheck } from 'lucide-react'; // Added more icons
 import MonthYearPicker from '@/components/shared/MonthYearPicker';
 import { formatIsoDate, getMonthYearString, getDatesForMonth, formatDate } from '@/lib/date-utils';
 import type { Worker } from '@/types';
 import { getEffectiveDaysForWorkerInMonth } from '@/lib/date-utils';
+import { Separator } from '@/components/ui/separator';
 
 interface CalculatedWageData {
   workerId: string;
@@ -23,7 +24,7 @@ interface CalculatedWageData {
   calculatedGrossSalary: number;
   totalMoneyTaken: number;
   netPayableSalary: number;
-  dailyRate: number;
+  dailyWage: number;
 }
 
 export default function WageReport() {
@@ -72,9 +73,10 @@ export default function WageReport() {
 
       const totalMoneyTaken = workerAttendanceInEffectivePeriod.reduce((sum, record) => sum + (record.moneyTakenAmount || 0), 0);
       
-      const dailyRate = totalCalendarDaysInMonth > 0 ? worker.assignedSalary / totalCalendarDaysInMonth : 0;
+      const dailyWage = totalCalendarDaysInMonth > 0 ? worker.assignedSalary / totalCalendarDaysInMonth : 0;
       
-      const calculatedGrossSalary = totalPresents * dailyRate;
+      // Gross salary is calculated based on days present within their effective working days for the month
+      const calculatedGrossSalary = totalPresents * dailyWage;
       const netPayableSalary = calculatedGrossSalary - totalMoneyTaken;
 
       return {
@@ -87,7 +89,7 @@ export default function WageReport() {
         calculatedGrossSalary,
         totalMoneyTaken,
         netPayableSalary,
-        dailyRate,
+        dailyWage,
       };
     });
   }, [workers, attendanceRecords, currentMonth]);
@@ -160,7 +162,7 @@ export default function WageReport() {
           <Card>
             <CardHeader>
               <CardTitle>Wage Calculation Details for {getMonthYearString(currentMonth)}</CardTitle>
-              <CardDescription>View detailed wage calculations for all workers for the selected month.</CardDescription>
+              <CardDescription>View detailed wage calculations for all workers for the selected month. Click a row to see summary.</CardDescription>
             </CardHeader>
             <CardContent>
               {calculatedWages.length > 0 ? (
@@ -179,14 +181,19 @@ export default function WageReport() {
                     </TableHeader>
                     <TableBody>
                       {calculatedWages.map(data => (
-                        <TableRow key={data.workerId} onClick={() => setSelectedWorkerId(data.workerId)} className={selectedWorkerId === data.workerId ? "bg-muted cursor-pointer" : "cursor-pointer hover:bg-muted/50"}>
+                        <TableRow 
+                          key={data.workerId} 
+                          onClick={() => setSelectedWorkerId(data.workerId)} 
+                          className={selectedWorkerId === data.workerId ? "bg-muted cursor-pointer" : "cursor-pointer hover:bg-muted/50"}
+                          aria-selected={selectedWorkerId === data.workerId}
+                        >
                           <TableCell className="font-medium">{data.workerName}</TableCell>
                           <TableCell className="text-right">{formatCurrency(data.assignedSalary)}</TableCell>
                           <TableCell className="text-right">{data.effectiveWorkingDaysInMonth}</TableCell>
                           <TableCell className="text-right">{data.totalPresents}</TableCell>
                           <TableCell className="text-right">{formatCurrency(data.calculatedGrossSalary)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(data.totalMoneyTaken)}</TableCell>
-                          <TableCell className="text-right font-semibold">{formatCurrency(data.netPayableSalary)}</TableCell>
+                          <TableCell className="text-right font-semibold text-base">{formatCurrency(data.netPayableSalary)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -203,21 +210,26 @@ export default function WageReport() {
           {selectedWorkerWageData ? (
             <Card>
               <CardHeader>
-                <CardTitle>Summary for {selectedWorkerWageData.workerName}</CardTitle>
+                <CardTitle className="text-xl">Summary: {selectedWorkerWageData.workerName}</CardTitle>
                 <CardDescription>{getMonthYearString(currentMonth)}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <SummaryItem icon={IndianRupee} label="Assigned Monthly Salary" value={formatCurrency(selectedWorkerWageData.assignedSalary)} />
-                <SummaryItem icon={FileText} label="Effective Days This Month" value={`${selectedWorkerWageData.effectiveWorkingDaysInMonth} days`} />
-                <SummaryItem icon={TrendingUp} label="Days Present (Equivalent)" value={`${selectedWorkerWageData.totalPresents} days`} />
+                <SummaryItem icon={CalendarDays} label="Effective Days This Month" value={`${selectedWorkerWageData.effectiveWorkingDaysInMonth} days`} />
+                <SummaryItem icon={UserCheck} label="Days Present (Equivalent)" value={`${selectedWorkerWageData.totalPresents} days`} />
                 <SummaryItem icon={TrendingDown} label="Days Absent/Leave (Equivalent)" value={`${selectedWorkerWageData.totalLeaves} days`} />
-                <hr className="my-2 border-border" />
-                <SummaryItem icon={IndianRupee} label="Calculated Gross Salary" value={formatCurrency(selectedWorkerWageData.calculatedGrossSalary)} />
-                <SummaryItem icon={IndianRupee} label="Total Money Taken" value={formatCurrency(selectedWorkerWageData.totalMoneyTaken)} className="text-destructive" />
-                <hr className="my-2 border-border" />
-                <SummaryItem icon={IndianRupee} label="Net Payable Salary" value={formatCurrency(selectedWorkerWageData.netPayableSalary)} className="font-bold text-lg" />
-                 <div className="text-xs text-muted-foreground pt-2">
-                  Daily rate (calendar): {formatCurrency(selectedWorkerWageData.dailyRate)}
+                
+                <Separator className="my-3" />
+                
+                <SummaryItem icon={TrendingUp} label="Calculated Gross Salary" value={formatCurrency(selectedWorkerWageData.calculatedGrossSalary)} />
+                <SummaryItem icon={IndianRupee} label="Total Money Taken" value={formatCurrency(selectedWorkerWageData.totalMoneyTaken)} valueClassName="text-destructive" />
+                
+                <Separator className="my-3" />
+                
+                <SummaryItem icon={IndianRupee} label="Net Payable Salary" value={formatCurrency(selectedWorkerWageData.netPayableSalary)} labelClassName="font-semibold" valueClassName="font-bold text-lg text-primary" />
+                
+                <div className="text-xs text-muted-foreground pt-3 border-t mt-3">
+                  Daily wage (calendar): {formatCurrency(selectedWorkerWageData.dailyWage)}
                 </div>
                 {workers.find(w=>w.id === selectedWorkerId)?.joinDate && 
                   <div className="text-xs text-muted-foreground pt-1">
@@ -233,9 +245,9 @@ export default function WageReport() {
             </Card>
           ) : (
             <Card>
-              <CardContent className="pt-6 text-center">
-                 <IndianRupee className="mx-auto h-12 w-12 text-muted-foreground" />
-                <p className="mt-2 text-sm text-muted-foreground">Select a worker to view their wage summary for {getMonthYearString(currentMonth)}.</p>
+              <CardContent className="pt-6 text-center min-h-[200px] flex flex-col items-center justify-center">
+                 <IndianRupee className="mx-auto h-12 w-12 text-muted-foreground mb-3" />
+                <p className="text-sm text-muted-foreground">Select a worker from the table to view their wage summary for {getMonthYearString(currentMonth)}.</p>
               </CardContent>
             </Card>
           )}
@@ -249,16 +261,17 @@ interface SummaryItemProps {
   icon: React.ElementType;
   label: string;
   value: string | number;
-  className?: string;
+  labelClassName?: string;
+  valueClassName?: string;
 }
 
-const SummaryItem: React.FC<SummaryItemProps> = ({ icon: Icon, label, value, className }) => (
-  <div className={`flex items-center justify-between ${className}`}>
+const SummaryItem: React.FC<SummaryItemProps> = ({ icon: Icon, label, value, labelClassName, valueClassName }) => (
+  <div className="flex items-center justify-between">
     <div className="flex items-center text-sm text-muted-foreground">
       <Icon className="h-4 w-4 mr-2 shrink-0" />
-      <span>{label}:</span>
+      <span className={labelClassName}>{label}:</span>
     </div>
-    <span className="text-sm font-medium text-foreground">{value}</span>
+    <span className={`text-sm font-medium text-foreground ${valueClassName}`}>{value}</span>
   </div>
 );
 
