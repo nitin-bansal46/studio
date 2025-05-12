@@ -1,3 +1,4 @@
+// src/app/reports/layout.tsx
 'use client';
 
 import React, { ReactNode } from 'react';
@@ -5,7 +6,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PageHeader from '@/components/shared/PageHeader';
-import { FileText, IndianRupee } from 'lucide-react'; // Changed DollarSign to IndianRupee, removed AlertTriangle
+import { FileText, IndianRupee, Briefcase } from 'lucide-react'; 
 
 interface ReportTab {
   value: string;
@@ -17,7 +18,7 @@ interface ReportTab {
 const reportTabs: ReportTab[] = [
   { value: 'leaves', label: 'Leaves', href: '/reports/leaves', icon: FileText },
   { value: 'wages', label: 'Wages', href: '/reports/wages', icon: IndianRupee },
-  // { value: 'anomalies', label: 'Anomalies', href: '/reports/anomalies', icon: AlertTriangle }, // Removed Anomalies tab
+  { value: 'expenditure', label: 'Expenditure', href: '/reports/expenditure', icon: Briefcase },
 ];
 
 export default function ReportsLayout({ children }: { children: ReactNode }) {
@@ -28,10 +29,10 @@ export default function ReportsLayout({ children }: { children: ReactNode }) {
     <div className="flex flex-col space-y-6 p-4 md:p-6">
       <PageHeader
         title="Reports"
-        description="View detailed reports on worker leaves and calculated wages." // Updated description
+        description="View detailed reports on worker leaves, wages, and monthly expenditure."
       />
       <Tabs value={activeTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 mb-6"> {/* Adjusted grid to 2 cols */}
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 mb-6">
           {reportTabs.map(tab => (
             <TabsTrigger key={tab.value} value={tab.value} asChild>
               <Link href={tab.href} className="flex items-center justify-center gap-2">
@@ -41,7 +42,6 @@ export default function ReportsLayout({ children }: { children: ReactNode }) {
             </TabsTrigger>
           ))}
         </TabsList>
-        {/* TabsContent will be rendered by the specific page */}
         {children}
       </Tabs>
     </div>

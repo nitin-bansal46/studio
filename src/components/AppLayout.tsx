@@ -20,9 +20,10 @@ import {
   LayoutDashboard,
   Users,
   CalendarCheck,
-  BarChart3, // Main reports icon
-  FileText,   // Leaves icon
-  IndianRupee, // Wages icon (changed from DollarSign)
+  BarChart3, 
+  FileText,   
+  IndianRupee, 
+  Briefcase, // Added for Expenditure
   Settings,
   ChevronDown,
   ChevronUp,
@@ -49,6 +50,7 @@ const navItems: NavItem[] = [
     subItems: [
       { href: '/reports/leaves', label: 'Leaves', icon: FileText },
       { href: '/reports/wages', label: 'Wages', icon: IndianRupee },
+      { href: '/reports/expenditure', label: 'Expenditure', icon: Briefcase }, // Added Expenditure
     ],
   },
 ];
