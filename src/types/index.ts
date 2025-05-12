@@ -2,6 +2,8 @@ export interface Worker {
   id: string;
   name: string;
   assignedSalary: number;
+  joinDate: string; // ISO string date YYYY-MM-DD
+  leftDate?: string | null; // ISO string date YYYY-MM-DD, optional
 }
 
 export type AttendanceStatus = 'present' | 'absent' | 'half-day' | 'per-day-wage-taken';
@@ -20,3 +22,4 @@ export interface AnomalyReport {
   summary: string;
   generatedAt: string; // ISO string timestamp
 }
+

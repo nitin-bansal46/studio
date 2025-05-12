@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Edit3, Trash2 } from 'lucide-react';
 import type { Worker } from '@/types';
+import { formatDate } from '@/lib/date-utils'; // Ensure formatDate is imported
 
 interface WorkerTableProps {
   workers: Worker[];
@@ -27,6 +28,8 @@ export function WorkerTable({ workers, onEdit, onDelete }: WorkerTableProps) {
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
+          <TableHead>Join Date</TableHead>
+          <TableHead>Left Date</TableHead>
           <TableHead className="text-right">Assigned Salary</TableHead>
           <TableHead className="text-right w-[120px]">Actions</TableHead>
         </TableRow>
@@ -35,6 +38,12 @@ export function WorkerTable({ workers, onEdit, onDelete }: WorkerTableProps) {
         {workers.map((worker) => (
           <TableRow key={worker.id}>
             <TableCell className="font-medium">{worker.name}</TableCell>
+            <TableCell>
+              {worker.joinDate ? formatDate(worker.joinDate, 'PP') : '-'}
+            </TableCell>
+            <TableCell>
+              {worker.leftDate ? formatDate(worker.leftDate, 'PP') : '-'}
+            </TableCell>
             <TableCell className="text-right">
               {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(worker.assignedSalary)}
             </TableCell>

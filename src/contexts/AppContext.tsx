@@ -26,6 +26,17 @@ const useLocalStorage = <T,>(key: string, initialValue: T): [T, React.Dispatch<R
     }
     try {
       const item = window.localStorage.getItem(key);
+      // Ensure existing workers get default joinDate if missing
+      if (key === 'wagewise_workers' && item) {
+        const parsedWorkers = JSON.parse(item) as Worker[];
+        parsedWorkers.forEach(w => {
+          if (!w.joinDate) {
+            // @ts-ignore
+            w.joinDate = new Date().toISOString().split('T')[0]; // Default to today if migrating old data
+          }
+        });
+        return parsedWorkers as T;
+      }
       return item ? JSON.parse(item) : initialValue;
     } catch (error) {
       console.error(`Error reading localStorage key "${key}":`, error);
@@ -52,12 +63,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [anomalyReports, setAnomalyReports] = useLocalStorage<AnomalyReport[]>('wagewise_anomalies', []);
 
   const addWorker = (workerData: Omit<Worker, 'id'>) => {
-    const newWorker: Worker = { ...workerData, id: crypto.randomUUID() };
+    const newWorker: Worker = { 
+      ...workerData, 
+      id: crypto.randomUUID(),
+      // Ensure leftDate is explicitly null if not a valid string, or empty
+      leftDate: typeof workerData.leftDate === 'string' && workerData.leftDate.length > 0 ? workerData.leftDate : null,
+    };
     setWorkers((prev) => [...prev, newWorker]);
   };
 
   const updateWorker = (updatedWorker: Worker) => {
-    setWorkers((prev) => prev.map((w) => (w.id === updatedWorker.id ? updatedWorker : w)));
+    setWorkers((prev) => prev.map((w) => (w.id === updatedWorker.id ? {
+      ...updatedWorker,
+      // Ensure leftDate is explicitly null if not a valid string, or empty
+      leftDate: typeof updatedWorker.leftDate === 'string' && updatedWorker.leftDate.length > 0 ? updatedWorker.leftDate : null,
+    } : w)));
   };
 
   const deleteWorker = (workerId: string) => {

@@ -25,10 +25,23 @@ import { useAppContext } from '@/contexts/AppContext';
 import type { Worker } from '@/types';
 import { useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { formatIsoDate } from '@/lib/date-utils';
 
 const workerSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   assignedSalary: z.coerce.number().positive({ message: 'Salary must be a positive number.' }),
+  joinDate: z.string()
+    .min(1, { message: "Join date is required." })
+    .refine((val) => /^\d{4}-\d{2}-\d{2}$/.test(val) && !isNaN(Date.parse(val)), {
+      message: "Invalid join date. Use YYYY-MM-DD format.",
+    }),
+  leftDate: z.string()
+    .transform(val => val === '' ? null : val) // Transform empty string to null
+    .nullable()
+    .refine(val => val === null || (/^\d{4}-\d{2}-\d{2}$/.test(val) && !isNaN(Date.parse(val))), {
+      message: "Invalid left date. Use YYYY-MM-DD format or leave empty.",
+    })
+    .optional(),
 });
 
 type WorkerFormData = z.infer<typeof workerSchema>;
@@ -48,29 +61,41 @@ export function WorkerDialog({ isOpen, onClose, worker }: WorkerDialogProps) {
     defaultValues: {
       name: '',
       assignedSalary: 0,
+      joinDate: formatIsoDate(new Date()),
+      leftDate: '', // Represent null/undefined as empty string for input field
     },
   });
 
   useEffect(() => {
-    if (worker) {
-      form.reset({
-        name: worker.name,
-        assignedSalary: worker.assignedSalary,
-      });
-    } else {
-      form.reset({
-        name: '',
-        assignedSalary: 0,
-      });
+    if (isOpen) { // only reset form when dialog is opened or worker changes
+      if (worker) {
+        form.reset({
+          name: worker.name,
+          assignedSalary: worker.assignedSalary,
+          joinDate: worker.joinDate || formatIsoDate(new Date()),
+          leftDate: worker.leftDate || '',
+        });
+      } else {
+        form.reset({
+          name: '',
+          assignedSalary: 0,
+          joinDate: formatIsoDate(new Date()),
+          leftDate: '',
+        });
+      }
     }
-  }, [worker, form, isOpen]); // Add isOpen to reset form when dialog opens
+  }, [worker, form, isOpen]);
 
   const onSubmit = (data: WorkerFormData) => {
+    const payload = {
+      ...data,
+      // Zod transform handles empty string to null for leftDate
+    };
     if (worker) {
-      updateWorker({ ...worker, ...data });
+      updateWorker({ ...worker, ...payload });
       toast({ title: "Worker Updated", description: `${data.name}'s profile has been updated.` });
     } else {
-      addWorker(data);
+      addWorker(payload as Omit<Worker, 'id'>); // Ensure type compatibility after transform
       toast({ title: "Worker Added", description: `${data.name} has been added to the roster.` });
     }
     onClose();
@@ -108,6 +133,32 @@ export function WorkerDialog({ isOpen, onClose, worker }: WorkerDialogProps) {
                   <FormLabel>Assigned Monthly Salary</FormLabel>
                   <FormControl>
                     <Input type="number" placeholder="e.g. 3000" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="joinDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Join Date</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="leftDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Left Date (Optional)</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
