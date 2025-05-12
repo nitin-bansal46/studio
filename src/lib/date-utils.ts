@@ -32,15 +32,8 @@ export const calculateWorkingDays = (year: number, month: number): number => {
   // month is 0-indexed (0 for January, 11 for December)
   const date = new Date(year, month, 1);
   const daysInMonth = getDaysInMonth(date);
-  let workingDays = 0;
-  for (let day = 1; day <= daysInMonth; day++) {
-    const currentDate = new Date(year, month, day);
-    const dayOfWeek = getDay(currentDate); // 0 for Sunday, 6 for Saturday
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      workingDays++;
-    }
-  }
-  return workingDays;
+  // All days are now considered working days.
+  return daysInMonth;
 };
 
 export const getDatesForMonth = (year: number, month: number): Date[] => {
@@ -56,13 +49,6 @@ export const isSameDay = (date1: Date, date2: Date): boolean => {
     date1.getMonth() === date2.getMonth() &&
     date1.getDate() === date2.getDate()
   );
-};
-
-export const getWeekdaysInMonth = (date: Date): Date[] => {
-  const monthStart = startOfMonth(date);
-  const monthEnd = endOfMonth(date);
-  const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
-  return days.filter(day => !isWeekend(day));
 };
 
 export const getEffectiveDaysForWorkerInMonth = (
@@ -103,14 +89,4 @@ export const getEffectiveDaysForWorkerInMonth = (
 
 
   return eachDayOfInterval({ start: effectiveStartDate, end: effectiveEndDate });
-};
-
-
-export const getEffectiveWorkingDaysForWorkerInMonth = (
-  monthDate: Date, // Any date in the target month
-  joinDateStr: string,
-  leftDateStr?: string | null
-): number => {
-    const effectiveDays = getEffectiveDaysForWorkerInMonth(monthDate, joinDateStr, leftDateStr);
-    return effectiveDays.filter(day => !isWeekend(day)).length;
 };

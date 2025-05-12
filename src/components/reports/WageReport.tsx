@@ -6,7 +6,7 @@ import { useAppContext } from '@/contexts/AppContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getMonthYearString, getWeekdaysInMonth, formatDate, getEffectiveWorkingDaysForWorkerInMonth, getEffectiveDaysForWorkerInMonth, formatIsoDate } from '@/lib/date-utils';
+import { getMonthYearString, getEffectiveDaysForWorkerInMonth, formatIsoDate, getDatesForMonth } from '@/lib/date-utils';
 import type { Worker } from '@/types';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Users, DollarSign } from 'lucide-react';
@@ -14,8 +14,8 @@ import MonthYearPicker from '@/components/shared/MonthYearPicker';
 
 interface SalaryCalculation {
   assignedSalary: number;
-  totalWorkingDaysInMonth: number;
-  effectiveWorkingDaysForWorker: number;
+  totalCalendarDaysInMonth: number;
+  effectiveCalendarDaysForWorker: number;
   dailyRate: number;
   baseEarnableSalaryForPeriod: number;
   absentDays: number;
@@ -24,6 +24,7 @@ interface SalaryCalculation {
   deductionForAbsence: number;
   deductionForHalfDay: number;
   netSalary: number;
+  totalPresentDays: number; // Added to display total present days
 }
 
 export default function WageReport() {
@@ -54,29 +55,30 @@ export default function WageReport() {
         new Date(record.date).getMonth() === monthNum
     );
 
-    const totalWorkingDaysInMonth = getWeekdaysInMonth(currentMonth).length;
+    const totalCalendarDaysInMonth = getDatesForMonth(currentMonth.getFullYear(), monthNum).length;
     
     const totalMoneyTakenThisMonth = workerAttendanceForMonth
         .reduce((sum, r) => sum + (r.moneyTakenAmount || 0), 0);
 
-    if (totalWorkingDaysInMonth === 0) {
+    if (totalCalendarDaysInMonth === 0) {
         return {
             assignedSalary: selectedWorker.assignedSalary,
-            totalWorkingDaysInMonth: 0,
-            effectiveWorkingDaysForWorker: 0,
+            totalCalendarDaysInMonth: 0,
+            effectiveCalendarDaysForWorker: 0,
             dailyRate: 0,
             baseEarnableSalaryForPeriod: 0,
             absentDays: 0, halfDays: 0,
             totalMoneyTakenThisMonth: totalMoneyTakenThisMonth,
             deductionForAbsence: 0, deductionForHalfDay: 0,
-            netSalary: 0 - totalMoneyTakenThisMonth
+            netSalary: 0 - totalMoneyTakenThisMonth,
+            totalPresentDays: 0,
         };
     }
 
-    const dailyRate = selectedWorker.assignedSalary / totalWorkingDaysInMonth;
+    const dailyRate = selectedWorker.assignedSalary / totalCalendarDaysInMonth;
 
-    const effectiveWorkingDaysForWorker = getEffectiveWorkingDaysForWorkerInMonth(currentMonth, selectedWorker.joinDate, selectedWorker.leftDate);
-    const baseEarnableSalaryForPeriod = dailyRate * effectiveWorkingDaysForWorker;
+    const effectiveCalendarDaysForWorker = getEffectiveDaysForWorkerInMonth(currentMonth, selectedWorker.joinDate, selectedWorker.leftDate).length;
+    const baseEarnableSalaryForPeriod = dailyRate * effectiveCalendarDaysForWorker;
 
     const effectiveDatesForWorkerISO = getEffectiveDaysForWorkerInMonth(currentMonth, selectedWorker.joinDate, selectedWorker.leftDate).map(d => formatIsoDate(d));
 
@@ -87,6 +89,18 @@ export default function WageReport() {
     const halfDays = workerAttendanceForMonth.filter(
         r => r.status === 'half-day' && effectiveDatesForWorkerISO.includes(r.date)
     ).length;
+    
+    let totalPresentDays = 0;
+    workerAttendanceForMonth.forEach(record => {
+      if (effectiveDatesForWorkerISO.includes(record.date)) {
+        if (record.status === 'present') {
+          totalPresentDays += 1;
+        } else if (record.status === 'half-day') {
+          totalPresentDays += 0.5;
+        }
+      }
+    });
+
 
     const deductionForAbsence = absentDays * dailyRate;
     const deductionForHalfDay = halfDays * (dailyRate / 2);
@@ -95,8 +109,8 @@ export default function WageReport() {
     
     return {
       assignedSalary: selectedWorker.assignedSalary,
-      totalWorkingDaysInMonth,
-      effectiveWorkingDaysForWorker,
+      totalCalendarDaysInMonth,
+      effectiveCalendarDaysForWorker,
       dailyRate,
       baseEarnableSalaryForPeriod,
       absentDays,
@@ -105,6 +119,7 @@ export default function WageReport() {
       deductionForAbsence,
       deductionForHalfDay,
       netSalary,
+      totalPresentDays,
     };
   }, [selectedWorker, attendanceRecords, currentMonth]);
 
@@ -181,20 +196,24 @@ export default function WageReport() {
                   <TableCell className="text-right">{formatCurrency(salaryCalculation.assignedSalary)}</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell>Total Working Days in Month</TableCell>
-                  <TableCell className="text-right">{salaryCalculation.totalWorkingDaysInMonth}</TableCell>
+                  <TableCell>Total Calendar Days in Month</TableCell>
+                  <TableCell className="text-right">{salaryCalculation.totalCalendarDaysInMonth}</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell>Calculated Daily Rate</TableCell>
                   <TableCell className="text-right">{formatCurrency(salaryCalculation.dailyRate)}</TableCell>
                 </TableRow>
                  <TableRow>
-                  <TableCell>Effective Working Days for Worker</TableCell>
-                  <TableCell className="text-right">{salaryCalculation.effectiveWorkingDaysForWorker}</TableCell>
+                  <TableCell>Effective Calendar Days for Worker</TableCell>
+                  <TableCell className="text-right">{salaryCalculation.effectiveCalendarDaysForWorker}</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell className="font-semibold">Base Earnable Salary for Period</TableCell>
                   <TableCell className="text-right font-semibold">{formatCurrency(salaryCalculation.baseEarnableSalaryForPeriod)}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>Total Present Days (Equivalent, within effective period)</TableCell>
+                  <TableCell className="text-right">{salaryCalculation.totalPresentDays}</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell>Absent Days (within effective period)</TableCell>
@@ -235,3 +254,4 @@ export default function WageReport() {
     </div>
   );
 }
+

@@ -11,7 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { formatIsoDate, getDatesForMonth, formatDate, isSameDay, getWeekdaysInMonth, getMonthYearString } from '@/lib/date-utils';
+import { formatIsoDate, getDatesForMonth, formatDate, isSameDay, getMonthYearString } from '@/lib/date-utils';
 import type { AttendanceRecord, AttendanceStatus } from '@/types';
 import { ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import MonthYearPicker from '@/components/shared/MonthYearPicker';
@@ -125,8 +125,8 @@ export default function AttendanceManager() {
       .filter(r => r.workerId === selectedWorker.id && new Date(r.date).getFullYear() === year && new Date(r.date).getMonth() === monthNum)
       .reduce((sum, r) => sum + (r.moneyTakenAmount || 0), 0);
     
-    const workingDaysInMonth = getWeekdaysInMonth(currentDate).length;
-    const dailyRate = workingDaysInMonth > 0 ? selectedWorker.assignedSalary / workingDaysInMonth : 0;
+    const calendarDaysInMonth = getDatesForMonth(currentDate.getFullYear(), currentDate.getMonth()).length;
+    const dailyRate = calendarDaysInMonth > 0 ? selectedWorker.assignedSalary / calendarDaysInMonth : 0;
     const remainingSalary = selectedWorker.assignedSalary - totalMoneyTakenThisMonth;
 
     return {
@@ -298,7 +298,7 @@ export default function AttendanceManager() {
                                   <div className="space-y-1.5">
                                     <p className="font-medium">Monthly Salary Stats for {getMonthYearString(currentDate)}</p>
                                     <p>Assigned Salary: <span className="font-semibold">₹{getMoneyTakenStats.assignedSalary}</span></p>
-                                    <p>Daily Rate: <span className="font-semibold">₹{getMoneyTakenStats.dailyRate}</span></p>
+                                    <p>Daily Rate (based on calendar days): <span className="font-semibold">₹{getMoneyTakenStats.dailyRate}</span></p>
                                     <p>Total Money Taken: <span className="font-semibold">₹{getMoneyTakenStats.totalMoneyTakenThisMonth}</span></p>
                                     <p>Remaining Payable: <span className="font-semibold">₹{getMoneyTakenStats.remainingSalary}</span></p>
                                   </div>
@@ -321,3 +321,4 @@ export default function AttendanceManager() {
     </>
   );
 }
+

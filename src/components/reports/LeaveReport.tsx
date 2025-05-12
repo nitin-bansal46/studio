@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -5,7 +6,7 @@ import { useAppContext } from '@/contexts/AppContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
-import { formatIsoDate, getMonthYearString, formatDate, getWeekdaysInMonth } from '@/lib/date-utils';
+import { formatIsoDate, getMonthYearString, formatDate, getDatesForMonth } from '@/lib/date-utils';
 import type { AttendanceRecord, Worker } from '@/types';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Users, CalendarDays } from 'lucide-react';
@@ -47,12 +48,12 @@ export default function LeaveReport() {
     const halfDayLeaves = workerAttendanceForMonth.filter(r => r.status === 'half-day').length;
     const fullDayAbsences = workerAttendanceForMonth.filter(r => r.status === 'absent').length;
     
-    const workingDaysInMonth = getWeekdaysInMonth(currentMonth).length;
+    const calendarDaysInMonth = getDatesForMonth(currentMonth.getFullYear(), currentMonth.getMonth()).length;
     const presentDays = workerAttendanceForMonth.filter(r => r.status === 'present').length + 
                         workerAttendanceForMonth.filter(r => r.status === 'half-day').length * 0.5;
 
 
-    return { totalLeaves, halfDayLeaves, fullDayAbsences, presentDays, workingDaysInMonth };
+    return { totalLeaves, halfDayLeaves, fullDayAbsences, presentDays, calendarDaysInMonth };
   }, [workerAttendanceForMonth, currentMonth]);
 
   const changeMonth = (offset: number) => {
@@ -141,7 +142,7 @@ export default function LeaveReport() {
               <div className="flex justify-between"><span>Full Day Absences:</span> <span className="font-semibold">{leaveData.fullDayAbsences} days</span></div>
               <div className="flex justify-between"><span>Half-Day Leaves:</span> <span className="font-semibold">{leaveData.halfDayLeaves} days</span></div>
               <div className="flex justify-between"><span>Present Days (equiv.):</span> <span className="font-semibold">{leaveData.presentDays} days</span></div>
-              <div className="flex justify-between"><span>Working Days in Month:</span> <span className="font-semibold">{leaveData.workingDaysInMonth} days</span></div>
+              <div className="flex justify-between"><span>Calendar Days in Month:</span> <span className="font-semibold">{leaveData.calendarDaysInMonth} days</span></div>
             </CardContent>
           </Card>
           <Card className="md:col-span-2">
@@ -187,3 +188,4 @@ export default function LeaveReport() {
     </div>
   );
 }
+
