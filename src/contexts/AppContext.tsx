@@ -1,6 +1,6 @@
 'use client';
 
-import type { Worker, AttendanceRecord, AnomalyReport } from '@/types';
+import type { Worker, AttendanceRecord, AnomalyReport, AttendanceStatus } from '@/types';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 interface AppContextType {
@@ -37,6 +37,35 @@ const useLocalStorage = <T,>(key: string, initialValue: T): [T, React.Dispatch<R
         });
         return parsedWorkers as T;
       }
+       // Migration for attendance records: rename perDayWageAmount to moneyTakenAmount
+      if (key === 'wagewise_attendance' && item) {
+        let parsedAttendance = JSON.parse(item) as any[]; // Read as any to handle old structure
+        parsedAttendance = parsedAttendance.map(record => {
+          if (record.hasOwnProperty('perDayWageAmount')) {
+            record.moneyTakenAmount = record.perDayWageAmount;
+            delete record.perDayWageAmount;
+          }
+          if (record.status === 'per-day-wage-taken') {
+             // If status was 'per-day-wage-taken', decide a default new status, e.g., 'present'
+             // Or, if moneyTakenAmount is significant, it might imply absence or specific handling.
+             // For now, let's assume 'present' if money was taken, or it could be based on other logic.
+             // This migration might need more sophisticated rules based on app logic.
+             // A simple approach: if money was taken, mark as present but note money taken.
+             // Or, if it was specifically for taking wage INSTEAD of working, mark as absent if desired.
+             // For this change, "money taken" is independent of status, so we can keep original status if it was present/absent/half-day
+             // and just move the amount. If it WAS 'per-day-wage-taken', we must assign a new valid status.
+             // Let's default 'per-day-wage-taken' to 'present' for simplicity in migration.
+            record.status = 'present'; 
+          }
+          // Ensure status is one of the valid new statuses
+          const validStatuses: AttendanceStatus[] = ['present', 'absent', 'half-day'];
+          if (!validStatuses.includes(record.status)) {
+            record.status = 'present'; // Default if status became invalid
+          }
+          return record as AttendanceRecord;
+        });
+        return parsedAttendance as T;
+      }
       return item ? JSON.parse(item) : initialValue;
     } catch (error) {
       console.error(`Error reading localStorage key "${key}":`, error);
@@ -66,7 +95,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const newWorker: Worker = { 
       ...workerData, 
       id: crypto.randomUUID(),
-      // Ensure leftDate is explicitly null if not a valid string, or empty
       leftDate: typeof workerData.leftDate === 'string' && workerData.leftDate.length > 0 ? workerData.leftDate : null,
     };
     setWorkers((prev) => [...prev, newWorker]);
@@ -75,14 +103,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateWorker = (updatedWorker: Worker) => {
     setWorkers((prev) => prev.map((w) => (w.id === updatedWorker.id ? {
       ...updatedWorker,
-      // Ensure leftDate is explicitly null if not a valid string, or empty
       leftDate: typeof updatedWorker.leftDate === 'string' && updatedWorker.leftDate.length > 0 ? updatedWorker.leftDate : null,
     } : w)));
   };
 
   const deleteWorker = (workerId: string) => {
     setWorkers((prev) => prev.filter((w) => w.id !== workerId));
-    setAttendanceRecords((prev) => prev.filter((ar) => ar.workerId !== workerId)); // Also delete related attendance
+    setAttendanceRecords((prev) => prev.filter((ar) => ar.workerId !== workerId));
   };
 
   const addAttendanceRecord = (recordData: Omit<AttendanceRecord, 'id'>) => {
@@ -90,11 +117,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     const finalRecordData = {
         ...recordData,
-        perDayWageAmount: recordData.status === 'per-day-wage-taken' ? (recordData.perDayWageAmount ?? 0) : undefined,
+        moneyTakenAmount: recordData.moneyTakenAmount // Amount is passed directly
     };
 
     if (existingRecord) {
-      updateAttendanceRecord({ ...existingRecord, status: finalRecordData.status, perDayWageAmount: finalRecordData.perDayWageAmount });
+      updateAttendanceRecord({ ...existingRecord, status: finalRecordData.status, moneyTakenAmount: finalRecordData.moneyTakenAmount });
     } else {
       const newRecord: AttendanceRecord = { ...finalRecordData, id: crypto.randomUUID() };
       setAttendanceRecords((prev) => [...prev, newRecord]);
@@ -104,7 +131,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateAttendanceRecord = (updatedRecord: AttendanceRecord) => {
     const finalRecordData = {
         ...updatedRecord,
-        perDayWageAmount: updatedRecord.status === 'per-day-wage-taken' ? (updatedRecord.perDayWageAmount ?? 0) : undefined,
+        moneyTakenAmount: updatedRecord.moneyTakenAmount // Amount is part of the record
     };
     setAttendanceRecords((prev) => prev.map((ar) => (ar.id === finalRecordData.id ? finalRecordData : ar)));
   };
@@ -118,7 +145,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addAnomalyReport = (report: AnomalyReport) => {
-    setAnomalyReports(prev => [report, ...prev.filter(r => !(r.workerId === report.workerId && r.monthYear === report.monthYear))].slice(0, 20)); // Keep last 20 reports
+    setAnomalyReports(prev => [report, ...prev.filter(r => !(r.workerId === report.workerId && r.monthYear === report.monthYear))].slice(0, 20)); 
   };
 
   return (

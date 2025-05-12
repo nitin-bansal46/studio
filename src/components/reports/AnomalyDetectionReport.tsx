@@ -28,7 +28,6 @@ export default function AnomalyDetectionReport() {
   }, [workers, selectedWorkerId]);
 
   useEffect(() => {
-    // Load existing report if available
     if (selectedWorkerId) {
       const monthYearStr = getIsoMonthYearString(currentMonth);
       const existingReport = anomalyReports.find(r => r.workerId === selectedWorkerId && r.monthYear === monthYearStr);
@@ -52,14 +51,18 @@ export default function AnomalyDetectionReport() {
     setDetectionResult(null);
 
     const year = currentMonth.getFullYear();
-    const monthNum = currentMonth.getMonth(); // 0-indexed
+    const monthNum = currentMonth.getMonth(); 
 
     const workerAttendanceForMonth = attendanceRecords.filter(
       record =>
         record.workerId === selectedWorkerId &&
         new Date(record.date).getFullYear() === year &&
         new Date(record.date).getMonth() === monthNum
-    ).map(ar => ({ date: ar.date, status: ar.status })); // AI might need specific format
+    ).map(ar => ({ 
+      date: ar.date, 
+      status: ar.status,
+      ...(ar.moneyTakenAmount !== undefined && { moneyTakenAmount: ar.moneyTakenAmount }) // Conditionally include moneyTakenAmount
+    }));
 
     try {
       const result: AttendanceAnomalyDetectionOutput = await attendanceAnomalyDetection({
@@ -76,13 +79,13 @@ export default function AnomalyDetectionReport() {
         generatedAt: new Date().toISOString(),
       };
       setDetectionResult(newReport);
-      addAnomalyReport(newReport); // Save to context/localStorage
+      addAnomalyReport(newReport); 
       toast({ title: "Detection Complete", description: `Anomaly report generated for ${selectedWorker.name}.` });
 
     } catch (error) {
       console.error("Error running anomaly detection:", error);
       toast({ title: "Detection Failed", description: "Could not generate anomaly report. Please try again.", variant: "destructive" });
-      setDetectionResult(null); // Clear any partial state
+      setDetectionResult(null); 
     } finally {
       setIsLoading(false);
     }
@@ -94,7 +97,7 @@ export default function AnomalyDetectionReport() {
       newDate.setMonth(newDate.getMonth() + offset);
       return newDate;
     });
-    setDetectionResult(null); // Clear results when month changes before new detection
+    setDetectionResult(null); 
   };
   
   if (workers.length === 0) {

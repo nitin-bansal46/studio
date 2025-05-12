@@ -66,14 +66,21 @@ export default function LeaveReport() {
   const calendarModifiers = {
     absent: workerAttendanceForMonth.filter(r => r.status === 'absent').map(r => new Date(r.date)),
     halfDay: workerAttendanceForMonth.filter(r => r.status === 'half-day').map(r => new Date(r.date)),
-    perDayWage: workerAttendanceForMonth.filter(r => r.status === 'per-day-wage-taken').map(r => new Date(r.date)),
+    // moneyTaken: workerAttendanceForMonth.filter(r => r.moneyTakenAmount && r.moneyTakenAmount > 0).map(r => new Date(r.date)), // Optional: visualize money taken days
   };
 
   const calendarModifiersStyles = {
     absent: { backgroundColor: 'hsl(var(--destructive))', color: 'hsl(var(--destructive-foreground))', borderRadius: '0.25rem' },
     halfDay: { backgroundColor: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))', opacity: 0.7, borderRadius: '0.25rem' },
-    perDayWage: { border: '2px solid hsl(var(--primary))', borderRadius: '0.25rem' },
+    // moneyTaken: { border: '2px dashed hsl(var(--primary))', borderRadius: '0.25rem' },
   };
+  
+  const legendItems = [
+    { label: 'Absent', style: calendarModifiersStyles.absent },
+    { label: 'Half-day', style: calendarModifiersStyles.halfDay },
+    // { label: 'Money Taken', style: calendarModifiersStyles.moneyTaken, isBorder: true }, // Optional legend item
+  ];
+
 
   if (workers.length === 0) {
     return (
@@ -141,22 +148,28 @@ export default function LeaveReport() {
             <CardHeader>
               <CardTitle>Leave Calendar</CardTitle>
               <CardDescription>
-                <span className="inline-block w-3 h-3 rounded-sm mr-1" style={calendarModifiersStyles.absent}></span> Absent
-                <span className="inline-block w-3 h-3 rounded-sm mx-1 ml-3" style={calendarModifiersStyles.halfDay}></span> Half-day
-                <span className="inline-block w-3 h-3 rounded-sm mx-1 ml-3 border-2 border-primary"></span> Per-day Wage
+                 {legendItems.map(item => (
+                    <span key={item.label} className="mr-4">
+                        <span 
+                            className="inline-block w-3 h-3 rounded-sm mr-1 align-middle" 
+                            style={item.isBorder ? { border: item.style.border } : item.style}
+                        ></span> 
+                        {item.label}
+                    </span>
+                 ))}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center">
               <Calendar
                 mode="single"
-                selected={currentMonth} // Selected is just for initial month focus
+                selected={currentMonth} 
                 month={currentMonth}
                 onMonthChange={setCurrentMonth}
                 modifiers={calendarModifiers}
                 modifiersStyles={calendarModifiersStyles}
                 className="rounded-md border p-0"
                 classNames={{
-                    day_selected: '', // Override default selection style
+                    day_selected: '', 
                     day_today: 'bg-muted text-foreground rounded-md',
                 }}
               />

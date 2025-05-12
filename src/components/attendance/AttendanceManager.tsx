@@ -10,20 +10,23 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { formatIsoDate, getDatesForMonth, formatDate, isSameDay } from '@/lib/date-utils';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { formatIsoDate, getDatesForMonth, formatDate, isSameDay, getWeekdaysInMonth, getMonthYearString } from '@/lib/date-utils';
 import type { AttendanceRecord, AttendanceStatus } from '@/types';
-import { ChevronLeft, ChevronRight, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, Info } from 'lucide-react';
 import MonthYearPicker from '@/components/shared/MonthYearPicker';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+
+const attendanceStatuses: AttendanceStatus[] = ['present', 'absent', 'half-day'];
 
 export default function AttendanceManager() {
   const { workers, attendanceRecords, addAttendanceRecord, getAttendanceForWorker } = useAppContext();
   const { toast } = useToast();
   
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
-  const [currentDate, setCurrentDate] = useState(new Date()); // Manages month and year for display
-  const [perDayWageAmounts, setPerDayWageAmounts] = useState<Record<string, number>>({});
+  const [currentDate, setCurrentDate] = useState(new Date()); 
+  const [moneyTakenAmounts, setMoneyTakenAmounts] = useState<Record<string, number | undefined>>({});
   
   const today = useMemo(() => new Date(), []);
 
@@ -43,59 +46,91 @@ export default function AttendanceManager() {
 
   useEffect(() => {
     if (selectedWorkerId && datesInMonth.length > 0) {
-        const initialAmounts: Record<string, number> = {};
+        const initialAmounts: Record<string, number | undefined> = {};
         datesInMonth.forEach(date => {
             const isoDate = formatIsoDate(date);
             const record = getAttendanceForWorker(selectedWorkerId, isoDate);
-            if (record && record.status === 'per-day-wage-taken' && record.perDayWageAmount !== undefined) {
-                initialAmounts[isoDate] = record.perDayWageAmount;
+            if (record && record.moneyTakenAmount !== undefined) {
+                initialAmounts[isoDate] = record.moneyTakenAmount;
+            } else {
+                initialAmounts[isoDate] = undefined; 
             }
         });
-        setPerDayWageAmounts(initialAmounts);
+        setMoneyTakenAmounts(initialAmounts);
     } else {
-        setPerDayWageAmounts({});
+        setMoneyTakenAmounts({});
     }
   }, [selectedWorkerId, datesInMonth, getAttendanceForWorker]);
 
 
-  const handleStatusChange = (date: Date, status: AttendanceStatus, amount?: number) => {
+  const handleStatusChange = (date: Date, status: AttendanceStatus) => {
     if (!selectedWorkerId) return;
     const isoDate = formatIsoDate(date);
+    const currentMoneyTaken = moneyTakenAmounts[isoDate] ?? getAttendanceForWorker(selectedWorkerId, isoDate)?.moneyTakenAmount;
     
-    let recordToSave: Omit<AttendanceRecord, 'id'> = {
+    addAttendanceRecord({
       workerId: selectedWorkerId,
       date: isoDate,
       status,
-    };
-  
-    if (status === 'per-day-wage-taken') {
-      recordToSave.perDayWageAmount = amount ?? perDayWageAmounts[isoDate] ?? 0;
-    } else {
-      recordToSave.perDayWageAmount = undefined;
-    }
-  
-    addAttendanceRecord(recordToSave);
+      moneyTakenAmount: currentMoneyTaken,
+    });
+
     toast({
         title: "Attendance Updated",
-        description: `${selectedWorker?.name || 'Worker'}'s attendance for ${formatDate(date, 'MMM d')} set to ${status}${status === 'per-day-wage-taken' ? ` (Amount: ${recordToSave.perDayWageAmount})` : ''}.`
+        description: `${selectedWorker?.name || 'Worker'}'s attendance for ${formatDate(date, 'MMM d')} set to ${status}.`
     });
   };
 
-  const handlePerDayWageAmountChange = (isoDate: string, value: string) => {
+  const handleMoneyTakenAmountChange = (isoDate: string, value: string) => {
     if(!selectedWorkerId) return;
     const amount = parseFloat(value);
-    const newAmount = isNaN(amount) ? 0 : amount;
+    const newAmount = isNaN(amount) ? undefined : amount;
     
-    setPerDayWageAmounts(prev => ({
+    setMoneyTakenAmounts(prev => ({
         ...prev,
         [isoDate]: newAmount,
     }));
 
-    const record = getAttendanceForWorker(selectedWorkerId, isoDate);
-    if (record && record.status === 'per-day-wage-taken') {
-        handleStatusChange(new Date(isoDate), 'per-day-wage-taken', newAmount);
+    const existingRecord = getAttendanceForWorker(selectedWorkerId, isoDate);
+    const statusToSave = existingRecord?.status;
+
+    // Only save if a status is already set or if an amount is being cleared for an existing record
+    if (statusToSave || (existingRecord && newAmount === undefined)) {
+      addAttendanceRecord({
+        workerId: selectedWorkerId,
+        date: isoDate,
+        status: statusToSave || 'present', // Default to present if new entry with money only, though UI flow might prevent this
+        moneyTakenAmount: newAmount,
+      });
+      toast({
+        title: "Money Taken Updated",
+        description: `${selectedWorker?.name || 'Worker'}'s money taken for ${formatDate(new Date(isoDate), 'MMM d')} updated to ${newAmount ?? 0}.`
+      });
     }
   };
+  
+  const getMoneyTakenStats = useMemo(() => {
+    if (!selectedWorker || !currentDate) return null;
+
+    const year = currentDate.getFullYear();
+    const monthNum = currentDate.getMonth();
+
+    const totalMoneyTakenThisMonth = attendanceRecords
+      .filter(r => r.workerId === selectedWorker.id && new Date(r.date).getFullYear() === year && new Date(r.date).getMonth() === monthNum)
+      .reduce((sum, r) => sum + (r.moneyTakenAmount || 0), 0);
+    
+    const workingDaysInMonth = getWeekdaysInMonth(currentDate).length;
+    const dailyRate = workingDaysInMonth > 0 ? selectedWorker.assignedSalary / workingDaysInMonth : 0;
+    const remainingSalary = selectedWorker.assignedSalary - totalMoneyTakenThisMonth;
+
+    return {
+      totalMoneyTakenThisMonth: totalMoneyTakenThisMonth.toFixed(2),
+      dailyRate: dailyRate.toFixed(2),
+      remainingSalary: remainingSalary.toFixed(2),
+      assignedSalary: selectedWorker.assignedSalary.toFixed(2),
+    };
+  }, [selectedWorker, attendanceRecords, currentDate]);
+
 
   const changeMonth = (offset: number) => {
     setCurrentDate(prev => {
@@ -125,7 +160,6 @@ export default function AttendanceManager() {
       <CardHeader>
         <CardTitle>Daily Attendance Log</CardTitle>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mt-4">
-          {/* Left side: Worker Select and Info */}
           <div className="flex flex-col gap-2">
             <Select onValueChange={setSelectedWorkerId} value={selectedWorkerId || undefined}>
               <SelectTrigger className="w-full md:w-[250px]">
@@ -148,7 +182,6 @@ export default function AttendanceManager() {
             )}
           </div>
 
-          {/* Right side: Date Navigation */}
           <div className="flex items-center gap-2 justify-start md:justify-end flex-wrap">
             <Button variant="outline" size="icon" onClick={() => changeMonth(-1)} aria-label="Previous month">
               <ChevronLeft className="h-4 w-4" />
@@ -167,27 +200,21 @@ export default function AttendanceManager() {
         </div>
       </CardHeader>
       <CardContent>
-        {selectedWorkerId ? (
+        {selectedWorkerId && selectedWorker ? (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[180px] whitespace-nowrap">Date</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="w-[200px]">Money Taken</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {datesInMonth.map(date => {
                   const isoDate = formatIsoDate(date);
                   const record = getAttendanceForWorker(selectedWorkerId, isoDate);
-                  const displayPerDayWageAmountInput = record?.status === 'per-day-wage-taken';
-                  
-                  let amountForInput: string | number = '';
-                  if (perDayWageAmounts[isoDate] !== undefined) {
-                      amountForInput = perDayWageAmounts[isoDate];
-                  } else if (displayPerDayWageAmountInput && record?.perDayWageAmount !== undefined) {
-                      amountForInput = record.perDayWageAmount;
-                  }
+                  const moneyTakenForDay = moneyTakenAmounts[isoDate] ?? record?.moneyTakenAmount ?? '';
                   
                   const isCurrentMonthAndYear = currentDate.getFullYear() === today.getFullYear() && currentDate.getMonth() === today.getMonth();
                   const isTodayRow = isCurrentMonthAndYear && isSameDay(date, today);
@@ -206,7 +233,7 @@ export default function AttendanceManager() {
                           }}
                           className="flex flex-wrap gap-x-4 gap-y-2 items-center"
                         >
-                          {(['present', 'absent', 'half-day', 'per-day-wage-taken'] as AttendanceStatus[]).map(statusValue => (
+                          {attendanceStatuses.map(statusValue => (
                             <div key={statusValue} className="flex items-center space-x-2">
                               <RadioGroupItem value={statusValue} id={`${isoDate}-${statusValue}`} />
                               <Label htmlFor={`${isoDate}-${statusValue}`} className="capitalize">
@@ -214,26 +241,34 @@ export default function AttendanceManager() {
                               </Label>
                             </div>
                           ))}
-                           {displayPerDayWageAmountInput && (
-                            <Input
-                            type="number"
-                            step="any"
-                            placeholder="Amount"
-                            value={amountForInput}
-                            onChange={(e) => handlePerDayWageAmountChange(isoDate, e.target.value)}
-                            onBlur={() => {
-                                const latestRecord = getAttendanceForWorker(selectedWorkerId, isoDate);
-                                if (latestRecord && latestRecord.status === 'per-day-wage-taken') {
-                                    const currentValInState = perDayWageAmounts[isoDate] ?? 0;
-                                    if (latestRecord.perDayWageAmount !== currentValInState) {
-                                        handleStatusChange(new Date(isoDate), 'per-day-wage-taken', currentValInState);
-                                    }
-                                }
-                            }}
-                            className="w-[120px] h-8 text-sm"
-                            />
-                        )}
                         </RadioGroup>
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-2">
+                           <Popover>
+                            <PopoverTrigger asChild>
+                                <Input
+                                    type="number"
+                                    step="any"
+                                    placeholder="Amount"
+                                    value={moneyTakenForDay}
+                                    onChange={(e) => handleMoneyTakenAmountChange(isoDate, e.target.value)}
+                                    className="w-[120px] h-8 text-sm"
+                                />
+                            </PopoverTrigger>
+                             {getMoneyTakenStats && (
+                                <PopoverContent className="w-auto text-sm p-3">
+                                  <div className="space-y-1.5">
+                                    <p className="font-medium">Monthly Salary Stats for {getMonthYearString(currentDate)}</p>
+                                    <p>Assigned Salary: <span className="font-semibold">${getMoneyTakenStats.assignedSalary}</span></p>
+                                    <p>Daily Rate (approx): <span className="font-semibold">${getMoneyTakenStats.dailyRate}</span></p>
+                                    <p>Total Money Taken: <span className="font-semibold">${getMoneyTakenStats.totalMoneyTakenThisMonth}</span></p>
+                                    <p>Remaining Payable: <span className="font-semibold">${getMoneyTakenStats.remainingSalary}</span></p>
+                                  </div>
+                                </PopoverContent>
+                              )}
+                           </Popover>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );

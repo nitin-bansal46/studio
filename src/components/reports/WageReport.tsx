@@ -19,7 +19,7 @@ interface SalaryCalculation {
   baseEarnableSalaryForPeriod: number;
   absentDays: number;
   halfDays: number;
-  totalPerDayWageTakenAmount: number;
+  totalMoneyTakenThisMonth: number;
   deductionForAbsence: number;
   deductionForHalfDay: number;
   netSalary: number;
@@ -55,9 +55,8 @@ export default function WageReport() {
 
     const totalWorkingDaysInMonth = getWeekdaysInMonth(currentMonth).length;
     
-    const totalPerDayWageTakenAmountOnAllDays = workerAttendanceForMonth
-        .filter(r => r.status === 'per-day-wage-taken' && r.perDayWageAmount !== undefined)
-        .reduce((sum, r) => sum + (r.perDayWageAmount || 0), 0);
+    const totalMoneyTakenThisMonth = workerAttendanceForMonth
+        .reduce((sum, r) => sum + (r.moneyTakenAmount || 0), 0);
 
     if (totalWorkingDaysInMonth === 0) {
         return {
@@ -67,9 +66,9 @@ export default function WageReport() {
             dailyRate: 0,
             baseEarnableSalaryForPeriod: 0,
             absentDays: 0, halfDays: 0,
-            totalPerDayWageTakenAmount: totalPerDayWageTakenAmountOnAllDays,
+            totalMoneyTakenThisMonth: totalMoneyTakenThisMonth,
             deductionForAbsence: 0, deductionForHalfDay: 0,
-            netSalary: 0 - totalPerDayWageTakenAmountOnAllDays
+            netSalary: 0 - totalMoneyTakenThisMonth
         };
     }
 
@@ -91,7 +90,7 @@ export default function WageReport() {
     const deductionForAbsence = absentDays * dailyRate;
     const deductionForHalfDay = halfDays * (dailyRate / 2);
     
-    const netSalary = baseEarnableSalaryForPeriod - deductionForAbsence - deductionForHalfDay - totalPerDayWageTakenAmountOnAllDays;
+    const netSalary = baseEarnableSalaryForPeriod - deductionForAbsence - deductionForHalfDay - totalMoneyTakenThisMonth;
     
     return {
       assignedSalary: selectedWorker.assignedSalary,
@@ -101,7 +100,7 @@ export default function WageReport() {
       baseEarnableSalaryForPeriod,
       absentDays,
       halfDays,
-      totalPerDayWageTakenAmount: totalPerDayWageTakenAmountOnAllDays,
+      totalMoneyTakenThisMonth: totalMoneyTakenThisMonth,
       deductionForAbsence,
       deductionForHalfDay,
       netSalary,
@@ -213,8 +212,8 @@ export default function WageReport() {
                   <TableCell className="text-right">-{formatCurrency(salaryCalculation.deductionForHalfDay)}</TableCell>
                 </TableRow>
                 <TableRow className="text-destructive">
-                  <TableCell>Total Per-Day Wage Taken</TableCell>
-                  <TableCell className="text-right">-{formatCurrency(salaryCalculation.totalPerDayWageTakenAmount)}</TableCell>
+                  <TableCell>Total Money Taken This Month</TableCell>
+                  <TableCell className="text-right">-{formatCurrency(salaryCalculation.totalMoneyTakenThisMonth)}</TableCell>
                 </TableRow>
                 <TableRow className={`font-bold text-lg ${salaryCalculation.netSalary < 0 ? 'text-destructive' : 'text-foreground'} bg-muted`}>
                   <TableCell>Net Payable Salary</TableCell>
