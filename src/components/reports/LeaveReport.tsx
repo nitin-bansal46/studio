@@ -99,7 +99,7 @@ export default function LeaveReport() {
     absent: { backgroundColor: 'hsl(var(--destructive))', color: 'hsl(var(--destructive-foreground))', borderRadius: '0.25rem' },
     halfDay: { backgroundColor: 'hsl(var(--accent))', color: 'hsl(var(--accent-foreground))', borderRadius: '0.25rem', opacity: 0.8 },
     present: { backgroundColor: 'hsl(var(--chart-2))', color: 'hsl(var(--primary-foreground))', borderRadius: '0.25rem' },
-    beforeJoinDate: { opacity: 0.5, backgroundColor: 'hsl(var(--muted))', pointerEvents: 'none' as 'none', borderRadius: '0.25rem' },
+    beforeJoinDate: { opacity: 0.5, backgroundColor: 'hsl(var(--muted))', pointerEvents: 'none' as 'none', borderRadius: '0.25rem', color: 'hsl(var(--muted-foreground))' },
   };
   
   const legendItems = [
@@ -114,14 +114,13 @@ export default function LeaveReport() {
     const moneyTaken = record?.moneyTakenAmount;
     const isDayBeforeJoining = joinDateObj ? isBefore(startOfDay(props.date), joinDateObj) : false;
     
-    // Do not show money for outside days or days before joining
     const showMoney = moneyTaken && moneyTaken > 0 && !props.outside && !isDayBeforeJoining;
 
     return (
       <div className="relative w-full h-full flex flex-col items-center justify-center">
         <span>{formatDateFn(props.date, 'd')}</span>
         {showMoney && (
-          <span className="absolute -top-0.5 right-0 text-[0.55rem] font-bold px-0.5 bg-background/80 text-foreground rounded-bl-sm shadow-sm leading-tight">
+          <span className="absolute top-0.5 right-0.5 text-[10px] font-semibold px-1 bg-background/90 text-foreground rounded-sm shadow leading-none">
             ₹{moneyTaken}
           </span>
         )}
@@ -217,13 +216,17 @@ export default function LeaveReport() {
                 modifiers={calendarModifiers}
                 modifiersStyles={calendarModifiersStyles}
                 components={{ DayContent: CustomDayContent }}
-                className="rounded-md border p-0"
+                className="rounded-md border p-2" // Increased padding
                 classNames={{
                     day_selected: '', 
                     day_today: 'bg-primary/10 text-primary ring-1 ring-primary rounded-md',
                     day_outside: 'text-muted-foreground opacity-50',
-                    cell: 'h-10 w-10 text-center text-sm p-0 relative first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20',
-                    day: 'h-10 w-10 p-0 font-normal aria-selected:opacity-100',
+                    // Increased cell and day size for better visibility
+                    cell: 'h-12 w-12 text-center text-sm p-0 relative first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20',
+                    day: 'h-12 w-12 p-0 font-normal aria-selected:opacity-100',
+                    // Ensure captions and navigation buttons have clear text
+                    caption_label: "text-foreground font-medium",
+                    nav_button: "text-foreground hover:text-accent-foreground",
                 }}
               />
             </CardContent>
