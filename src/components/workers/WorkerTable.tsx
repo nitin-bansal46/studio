@@ -10,28 +10,50 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Edit3, Trash2 } from 'lucide-react';
+import { Edit3, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 import type { Worker } from '@/types';
 import { formatDate } from '@/lib/date-utils'; 
+
+export type SortableWorkerColumn = 'name' | 'joinDate' | 'leftDate' | 'assignedSalary';
+export type SortOrder = 'asc' | 'desc';
 
 interface WorkerTableProps {
   workers: Worker[];
   onEdit: (worker: Worker) => void;
-  onDelete: (worker: Worker) => void; 
+  onDelete: (worker: Worker) => void;
+  sortKey: SortableWorkerColumn | null;
+  sortOrder: SortOrder;
+  onSortRequest: (key: SortableWorkerColumn) => void;
 }
 
-export function WorkerTable({ workers, onEdit, onDelete }: WorkerTableProps) {
+export function WorkerTable({ workers, onEdit, onDelete, sortKey, sortOrder, onSortRequest }: WorkerTableProps) {
   if (workers.length === 0) {
-    return <p className="text-center text-muted-foreground py-4">No workers match your search.</p>;
+    return <p className="text-center text-muted-foreground py-4">No workers found.</p>;
   }
+
+  const SortableHeader = ({ columnKey, label, className }: { columnKey: SortableWorkerColumn, label: string, className?: string }) => (
+    <TableHead className={className}>
+      <Button
+        variant="ghost"
+        onClick={() => onSortRequest(columnKey)}
+        className="px-1 py-1 h-auto font-medium hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+      >
+        {label}
+        {sortKey === columnKey && (
+          sortOrder === 'asc' ? <ArrowUp className="ml-2 h-4 w-4 inline" /> : <ArrowDown className="ml-2 h-4 w-4 inline" />
+        )}
+      </Button>
+    </TableHead>
+  );
+
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Join Date</TableHead>
-          <TableHead>Left Date</TableHead>
-          <TableHead className="text-right">Assigned Salary (₹)</TableHead>
+          <SortableHeader columnKey="name" label="Name" />
+          <SortableHeader columnKey="joinDate" label="Join Date" />
+          <SortableHeader columnKey="leftDate" label="Left Date" />
+          <SortableHeader columnKey="assignedSalary" label="Assigned Salary (₹)" className="text-right" />
           <TableHead className="text-right w-[120px]">Actions</TableHead>
         </TableRow>
       </TableHeader>

@@ -2,12 +2,11 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { PlusCircle, Edit3, Trash2, Users } from 'lucide-react';
+import { PlusCircle, Users, ArrowUp, ArrowDown } from 'lucide-react'; // Added ArrowUp, ArrowDown (though not directly used in JSX here, good for consistency)
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-// import { Input } from '@/components/ui/input'; // Removed as search is removed
 import { WorkerDialog } from '@/components/workers/WorkerDialog';
-import { WorkerTable } from '@/components/workers/WorkerTable';
+import { WorkerTable, type SortableWorkerColumn, type SortOrder } from '@/components/workers/WorkerTable'; // Import types
 import { useAppContext } from '@/contexts/AppContext';
 import type { Worker } from '@/types';
 import PageHeader from '@/components/shared/PageHeader';
@@ -28,12 +27,14 @@ import { parseISO, isAfter, startOfDay, isValid } from 'date-fns';
 export default function WorkersPage() {
   const { workers, deleteWorker } = useAppContext();
   const { toast } = useToast();
-  // const [searchTerm, setSearchTerm] = useState(''); // Removed search state
   const [isWorkerDialogOpen, setIsWorkerDialogOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
   
   const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
   const [workerToDelete, setWorkerToDelete] = useState<Worker | null>(null);
+
+  const [sortKey, setSortKey] = useState<SortableWorkerColumn>('name');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -42,7 +43,6 @@ export default function WorkersPage() {
     if (searchParams.get('action') === 'add') {
       setEditingWorker(null);
       setIsWorkerDialogOpen(true);
-      // Remove action from URL after opening dialog
       router.replace('/workers', { scroll: false });
     }
   }, [searchParams, router]);
@@ -74,26 +74,65 @@ export default function WorkersPage() {
     }
   };
 
+  const handleSortRequest = (key: SortableWorkerColumn) => {
+    if (sortKey === key) {
+      setSortOrder(prevOrder => (prevOrder === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortOrder('asc');
+    }
+  };
+
   const activeWorkerCount = useMemo(() => {
     const today = startOfDay(new Date());
     return workers.filter(worker => {
-      if (!worker.leftDate) { // Handles null, undefined
+      if (!worker.leftDate) { 
         return true; 
       }
       try {
         const leftDateObj = parseISO(worker.leftDate);
-        // Ensure the date is valid before comparison
-        if (!isValid(leftDateObj)) return true; // Treat invalid dates as still active to be safe
-        return isAfter(leftDateObj, today); // Active if left date is after today
+        if (!isValid(leftDateObj)) return true; 
+        return isAfter(leftDateObj, today); 
       } catch (e) {
-        return true; // If parsing fails, assume active
+        return true; 
       }
     }).length;
   }, [workers]);
 
   const sortedWorkers = useMemo(() => {
-    return [...workers].sort((a, b) => a.name.localeCompare(b.name));
-  }, [workers]);
+    return [...workers].sort((a, b) => {
+      if (!sortKey) return 0;
+
+      let valA = a[sortKey];
+      let valB = b[sortKey];
+      let comparison = 0;
+
+      switch (sortKey) {
+        case 'name':
+          comparison = (valA as string).localeCompare(valB as string);
+          break;
+        case 'assignedSalary':
+          comparison = (valA as number) - (valB as number);
+          break;
+        case 'joinDate':
+          comparison = new Date(valA as string).getTime() - new Date(valB as string).getTime();
+          break;
+        case 'leftDate':
+          const dateA = valA ? new Date(valA as string).getTime() : null;
+          const dateB = valB ? new Date(valB as string).getTime() : null;
+
+          if (dateA === null && dateB === null) comparison = 0;
+          else if (dateA === null) comparison = 1; // Nulls (active) last for asc
+          else if (dateB === null) comparison = -1; // Nulls (active) last for asc
+          else comparison = dateA - dateB;
+          break;
+        default:
+          return 0;
+      }
+
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  }, [workers, sortKey, sortOrder]);
 
   return (
     <div className="flex flex-col space-y-6 p-4 md:p-6">
@@ -109,7 +148,6 @@ export default function WorkersPage() {
       <Card>
         <CardHeader>
           <CardTitle>Worker List</CardTitle>
-          {/* Removed search input, added active worker count */}
           <div className="mt-2 text-sm text-muted-foreground">
             Total Active Workers: <span className="font-semibold text-foreground">{activeWorkerCount}</span>
           </div>
@@ -129,9 +167,12 @@ export default function WorkersPage() {
             </div>
           ) : (
             <WorkerTable
-                workers={sortedWorkers} // Use sortedWorkers
+                workers={sortedWorkers}
                 onEdit={handleEditWorker}
                 onDelete={handleOpenDeleteDialog}
+                sortKey={sortKey}
+                sortOrder={sortOrder}
+                onSortRequest={handleSortRequest}
             />
           )}
         </CardContent>
