@@ -1,8 +1,7 @@
-// src/app/workers/page.tsx
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { PlusCircle, Users, ArrowUp, ArrowDown } from 'lucide-react'; 
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
+import { PlusCircle, Users, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { WorkerDialog } from '@/components/workers/WorkerDialog';
@@ -20,16 +19,16 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { parseISO, isAfter, startOfDay, isValid } from 'date-fns';
 
-export default function WorkersPage() {
+function WorkersPageContent() {
   const { workers, deleteWorker } = useAppContext();
   const { toast } = useToast();
   const [isWorkerDialogOpen, setIsWorkerDialogOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
-  
+
   const [isConfirmDeleteDialogOpen, setIsConfirmDeleteDialogOpen] = useState(false);
   const [workerToDelete, setWorkerToDelete] = useState<Worker | null>(null);
 
@@ -76,7 +75,7 @@ export default function WorkersPage() {
 
   const handleSortRequest = (key: SortableWorkerColumn) => {
     if (sortKey === key) {
-      setSortOrder(prevOrder => (prevOrder === 'asc' ? 'desc' : 'asc'));
+      setSortOrder((prevOrder) => (prevOrder === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortKey(key);
       setSortOrder('asc');
@@ -89,16 +88,16 @@ export default function WorkersPage() {
 
   const activeWorkerCount = useMemo(() => {
     const today = startOfDay(new Date());
-    return workers.filter(worker => {
-      if (!worker.leftDate) { 
-        return true; 
+    return workers.filter((worker) => {
+      if (!worker.leftDate) {
+        return true;
       }
       try {
         const leftDateObj = parseISO(worker.leftDate);
-        if (!isValid(leftDateObj)) return true; 
-        return isAfter(leftDateObj, today); 
+        if (!isValid(leftDateObj)) return true;
+        return isAfter(leftDateObj, today);
       } catch (e) {
-        return true; 
+        return true;
       }
     }).length;
   }, [workers]);
@@ -158,26 +157,26 @@ export default function WorkersPage() {
         </CardHeader>
         <CardContent>
           {workers.length === 0 ? (
-             <div className="text-center py-10">
-                <Users className="mx-auto h-12 w-12 text-muted-foreground" />
-                <h3 className="mt-2 text-sm font-medium text-foreground">No workers found</h3>
-                <p className="mt-1 text-sm text-muted-foreground">Get started by adding a new worker.</p>
-                <div className="mt-6">
-                    <Button onClick={handleAddWorker}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Add Worker
-                    </Button>
-                </div>
+            <div className="text-center py-10">
+              <Users className="mx-auto h-12 w-12 text-muted-foreground" />
+              <h3 className="mt-2 text-sm font-medium text-foreground">No workers found</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Get started by adding a new worker.</p>
+              <div className="mt-6">
+                <Button onClick={handleAddWorker}>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Add Worker
+                </Button>
+              </div>
             </div>
           ) : (
             <WorkerTable
-                workers={sortedWorkers}
-                onEdit={handleEditWorker}
-                onDelete={handleOpenDeleteDialog}
-                onRowClick={handleWorkerRowClick} // Pass the handler
-                sortKey={sortKey}
-                sortOrder={sortOrder}
-                onSortRequest={handleSortRequest}
+              workers={sortedWorkers}
+              onEdit={handleEditWorker}
+              onDelete={handleOpenDeleteDialog}
+              onRowClick={handleWorkerRowClick} // Pass the handler
+              sortKey={sortKey}
+              sortOrder={sortOrder}
+              onSortRequest={handleSortRequest}
             />
           )}
         </CardContent>
@@ -197,8 +196,8 @@ export default function WorkersPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the worker 
-              "{workerToDelete?.name}" and all their associated attendance records.
+              This action cannot be undone. This will permanently delete the worker "{workerToDelete?.name}" and all
+              their associated attendance records.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -210,5 +209,13 @@ export default function WorkersPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+export default function WorkersPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <WorkersPageContent />
+    </Suspense>
   );
 }
