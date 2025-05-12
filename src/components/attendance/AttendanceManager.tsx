@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { formatIsoDate, getDatesForMonth, getMonthYearString, formatDate } from '@/lib/date-utils';
 import type { AttendanceRecord, AttendanceStatus, Worker } from '@/types';
 import { ChevronLeft, ChevronRight, CalendarIcon, Users } from 'lucide-react';
@@ -20,6 +21,8 @@ export default function AttendanceManager() {
   
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date()); // Manages month and year for display
+  const [perDayWageAmounts, setPerDayWageAmounts] = useState<Record<string, number>>({});
+
 
   useEffect(() => {
     if (workers.length > 0 && !selectedWorkerId) {
@@ -35,14 +38,60 @@ export default function AttendanceManager() {
     return getDatesForMonth(currentDate.getFullYear(), currentDate.getMonth());
   }, [currentDate]);
 
-  const handleStatusChange = (date: Date, status: AttendanceStatus) => {
+  useEffect(() => {
+    if (selectedWorkerId && datesInMonth.length > 0) {
+        const initialAmounts: Record<string, number> = {};
+        datesInMonth.forEach(date => {
+            const isoDate = formatIsoDate(date);
+            const record = getAttendanceForWorker(selectedWorkerId, isoDate);
+            if (record && record.status === 'per-day-wage-taken' && record.perDayWageAmount !== undefined) {
+                initialAmounts[isoDate] = record.perDayWageAmount;
+            }
+        });
+        setPerDayWageAmounts(initialAmounts);
+    } else {
+        setPerDayWageAmounts({});
+    }
+  }, [selectedWorkerId, datesInMonth, getAttendanceForWorker]);
+
+
+  const handleStatusChange = (date: Date, status: AttendanceStatus, amount?: number) => {
     if (!selectedWorkerId) return;
     const isoDate = formatIsoDate(date);
-    addAttendanceRecord({ workerId: selectedWorkerId, date: isoDate, status });
+    
+    let recordToSave: Omit<AttendanceRecord, 'id'> = {
+      workerId: selectedWorkerId,
+      date: isoDate,
+      status,
+    };
+  
+    if (status === 'per-day-wage-taken') {
+      recordToSave.perDayWageAmount = amount ?? perDayWageAmounts[isoDate] ?? 0;
+    } else {
+      recordToSave.perDayWageAmount = undefined;
+    }
+  
+    addAttendanceRecord(recordToSave);
     toast({
         title: "Attendance Updated",
-        description: `${selectedWorker?.name || 'Worker'}'s attendance for ${formatDate(date, 'MMM d')} set to ${status}.`
+        description: `${selectedWorker?.name || 'Worker'}'s attendance for ${formatDate(date, 'MMM d')} set to ${status}${status === 'per-day-wage-taken' ? ` (Amount: ${recordToSave.perDayWageAmount})` : ''}.`
     });
+  };
+
+  const handlePerDayWageAmountChange = (isoDate: string, value: string) => {
+    if(!selectedWorkerId) return;
+    const amount = parseFloat(value);
+    const newAmount = isNaN(amount) ? 0 : amount;
+    
+    setPerDayWageAmounts(prev => ({
+        ...prev,
+        [isoDate]: newAmount,
+    }));
+
+    const record = getAttendanceForWorker(selectedWorkerId, isoDate);
+    if (record && record.status === 'per-day-wage-taken') {
+        handleStatusChange(new Date(isoDate), 'per-day-wage-taken', newAmount);
+    }
   };
 
   const changeMonth = (offset: number) => {
@@ -115,13 +164,24 @@ export default function AttendanceManager() {
                 {datesInMonth.map(date => {
                   const isoDate = formatIsoDate(date);
                   const record = getAttendanceForWorker(selectedWorkerId, isoDate);
+                  const displayPerDayWageAmountInput = record?.status === 'per-day-wage-taken';
+                  
+                  let amountForInput: string | number = '';
+                  if (perDayWageAmounts[isoDate] !== undefined) {
+                      amountForInput = perDayWageAmounts[isoDate];
+                  } else if (displayPerDayWageAmountInput && record?.perDayWageAmount !== undefined) {
+                      amountForInput = record.perDayWageAmount;
+                  }
+
                   return (
                     <TableRow key={isoDate}>
                       <TableCell>{formatDate(date, 'EEE, MMM d')}</TableCell>
                       <TableCell>
                         <RadioGroup
                           value={record?.status}
-                          onValueChange={(status) => handleStatusChange(date, status as AttendanceStatus)}
+                          onValueChange={(newStatus) => {
+                            handleStatusChange(date, newStatus as AttendanceStatus);
+                          }}
                           className="flex flex-wrap gap-x-4 gap-y-2"
                         >
                           {(['present', 'absent', 'half-day', 'per-day-wage-taken'] as AttendanceStatus[]).map(statusValue => (
@@ -133,6 +193,25 @@ export default function AttendanceManager() {
                             </div>
                           ))}
                         </RadioGroup>
+                        {displayPerDayWageAmountInput && (
+                            <Input
+                            type="number"
+                            step="any"
+                            placeholder="Amount"
+                            value={amountForInput}
+                            onChange={(e) => handlePerDayWageAmountChange(isoDate, e.target.value)}
+                            onBlur={() => {
+                                const latestRecord = getAttendanceForWorker(selectedWorkerId, isoDate);
+                                if (latestRecord && latestRecord.status === 'per-day-wage-taken') {
+                                    const currentValInState = perDayWageAmounts[isoDate] ?? 0;
+                                    if (latestRecord.perDayWageAmount !== currentValInState) {
+                                        handleStatusChange(new Date(isoDate), 'per-day-wage-taken', currentValInState);
+                                    }
+                                }
+                            }}
+                            className="mt-2 w-[120px] h-8 text-sm"
+                            />
+                        )}
                       </TableCell>
                     </TableRow>
                   );

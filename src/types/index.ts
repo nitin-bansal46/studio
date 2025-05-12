@@ -13,6 +13,7 @@ export interface AttendanceRecord {
   workerId: string;
   date: string; // ISO string date YYYY-MM-DD
   status: AttendanceStatus;
+  perDayWageAmount?: number; // Amount taken if status is 'per-day-wage-taken'
 }
 
 export interface AnomalyReport {

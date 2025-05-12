@@ -86,18 +86,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addAttendanceRecord = (recordData: Omit<AttendanceRecord, 'id'>) => {
-    // Check if a record for this worker and date already exists, if so, update it
     const existingRecord = attendanceRecords.find(ar => ar.workerId === recordData.workerId && ar.date === recordData.date);
+    
+    const finalRecordData = {
+        ...recordData,
+        perDayWageAmount: recordData.status === 'per-day-wage-taken' ? (recordData.perDayWageAmount ?? 0) : undefined,
+    };
+
     if (existingRecord) {
-      updateAttendanceRecord({ ...existingRecord, status: recordData.status });
+      updateAttendanceRecord({ ...existingRecord, status: finalRecordData.status, perDayWageAmount: finalRecordData.perDayWageAmount });
     } else {
-      const newRecord: AttendanceRecord = { ...recordData, id: crypto.randomUUID() };
+      const newRecord: AttendanceRecord = { ...finalRecordData, id: crypto.randomUUID() };
       setAttendanceRecords((prev) => [...prev, newRecord]);
     }
   };
   
   const updateAttendanceRecord = (updatedRecord: AttendanceRecord) => {
-    setAttendanceRecords((prev) => prev.map((ar) => (ar.id === updatedRecord.id ? updatedRecord : ar)));
+    const finalRecordData = {
+        ...updatedRecord,
+        perDayWageAmount: updatedRecord.status === 'per-day-wage-taken' ? (updatedRecord.perDayWageAmount ?? 0) : undefined,
+    };
+    setAttendanceRecords((prev) => prev.map((ar) => (ar.id === finalRecordData.id ? finalRecordData : ar)));
   };
 
   const deleteAttendanceRecord = (recordId: string) => {

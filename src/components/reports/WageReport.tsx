@@ -5,7 +5,7 @@ import { useAppContext } from '@/contexts/AppContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { getMonthYearString, getWeekdaysInMonth, formatDate } from '@/lib/date-utils';
+import { getMonthYearString, getWeekdaysInMonth, formatDate, getEffectiveWorkingDaysForWorkerInMonth, getEffectiveDaysForWorkerInMonth, formatIsoDate } from '@/lib/date-utils';
 import type { Worker } from '@/types';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Users, DollarSign } from 'lucide-react';
@@ -13,14 +13,15 @@ import MonthYearPicker from '@/components/shared/MonthYearPicker';
 
 interface SalaryCalculation {
   assignedSalary: number;
-  workingDays: number;
+  totalWorkingDaysInMonth: number;
+  effectiveWorkingDaysForWorker: number;
   dailyRate: number;
+  baseEarnableSalaryForPeriod: number;
   absentDays: number;
   halfDays: number;
-  perDayWageTakenDays: number;
+  totalPerDayWageTakenAmount: number;
   deductionForAbsence: number;
   deductionForHalfDay: number;
-  deductionForPerDayWage: number;
   netSalary: number;
 }
 
@@ -43,45 +44,66 @@ export default function WageReport() {
     if (!selectedWorker) return null;
 
     const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth(); // 0-indexed
+    const monthNum = currentMonth.getMonth(); // 0-indexed
 
     const workerAttendanceForMonth = attendanceRecords.filter(
       record =>
         record.workerId === selectedWorker.id &&
         new Date(record.date).getFullYear() === year &&
-        new Date(record.date).getMonth() === month
+        new Date(record.date).getMonth() === monthNum
     );
 
-    const workingDays = getWeekdaysInMonth(currentMonth).length;
-    if (workingDays === 0) return { // Prevent division by zero
-        assignedSalary: selectedWorker.assignedSalary, workingDays: 0, dailyRate: 0,
-        absentDays: 0, halfDays: 0, perDayWageTakenDays: 0,
-        deductionForAbsence: 0, deductionForHalfDay: 0, deductionForPerDayWage: 0,
-        netSalary: selectedWorker.assignedSalary
-    };
+    const totalWorkingDaysInMonth = getWeekdaysInMonth(currentMonth).length;
+    
+    const totalPerDayWageTakenAmountOnAllDays = workerAttendanceForMonth
+        .filter(r => r.status === 'per-day-wage-taken' && r.perDayWageAmount !== undefined)
+        .reduce((sum, r) => sum + (r.perDayWageAmount || 0), 0);
 
-    const dailyRate = selectedWorker.assignedSalary / workingDays;
+    if (totalWorkingDaysInMonth === 0) {
+        return {
+            assignedSalary: selectedWorker.assignedSalary,
+            totalWorkingDaysInMonth: 0,
+            effectiveWorkingDaysForWorker: 0,
+            dailyRate: 0,
+            baseEarnableSalaryForPeriod: 0,
+            absentDays: 0, halfDays: 0,
+            totalPerDayWageTakenAmount: totalPerDayWageTakenAmountOnAllDays,
+            deductionForAbsence: 0, deductionForHalfDay: 0,
+            netSalary: 0 - totalPerDayWageTakenAmountOnAllDays
+        };
+    }
 
-    const absentDays = workerAttendanceForMonth.filter(r => r.status === 'absent').length;
-    const halfDays = workerAttendanceForMonth.filter(r => r.status === 'half-day').length;
-    const perDayWageTakenDays = workerAttendanceForMonth.filter(r => r.status === 'per-day-wage-taken').length;
+    const dailyRate = selectedWorker.assignedSalary / totalWorkingDaysInMonth;
+
+    const effectiveWorkingDaysForWorker = getEffectiveWorkingDaysForWorkerInMonth(currentMonth, selectedWorker.joinDate, selectedWorker.leftDate);
+    const baseEarnableSalaryForPeriod = dailyRate * effectiveWorkingDaysForWorker;
+
+    const effectiveDatesForWorkerISO = getEffectiveDaysForWorkerInMonth(currentMonth, selectedWorker.joinDate, selectedWorker.leftDate).map(d => formatIsoDate(d));
+
+    const absentDays = workerAttendanceForMonth.filter(
+        r => r.status === 'absent' && effectiveDatesForWorkerISO.includes(r.date)
+    ).length;
+
+    const halfDays = workerAttendanceForMonth.filter(
+        r => r.status === 'half-day' && effectiveDatesForWorkerISO.includes(r.date)
+    ).length;
 
     const deductionForAbsence = absentDays * dailyRate;
     const deductionForHalfDay = halfDays * (dailyRate / 2);
-    const deductionForPerDayWage = perDayWageTakenDays * dailyRate; // Assuming per-day wage taken equals daily rate
-
-    const netSalary = selectedWorker.assignedSalary - deductionForAbsence - deductionForHalfDay - deductionForPerDayWage;
+    
+    const netSalary = baseEarnableSalaryForPeriod - deductionForAbsence - deductionForHalfDay - totalPerDayWageTakenAmountOnAllDays;
     
     return {
       assignedSalary: selectedWorker.assignedSalary,
-      workingDays,
+      totalWorkingDaysInMonth,
+      effectiveWorkingDaysForWorker,
       dailyRate,
+      baseEarnableSalaryForPeriod,
       absentDays,
       halfDays,
-      perDayWageTakenDays,
+      totalPerDayWageTakenAmount: totalPerDayWageTakenAmountOnAllDays,
       deductionForAbsence,
       deductionForHalfDay,
-      deductionForPerDayWage,
       netSalary,
     };
   }, [selectedWorker, attendanceRecords, currentMonth]);
@@ -159,24 +181,28 @@ export default function WageReport() {
                   <TableCell className="text-right">{formatCurrency(salaryCalculation.assignedSalary)}</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell>Working Days in Month</TableCell>
-                  <TableCell className="text-right">{salaryCalculation.workingDays}</TableCell>
+                  <TableCell>Total Working Days in Month</TableCell>
+                  <TableCell className="text-right">{salaryCalculation.totalWorkingDaysInMonth}</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell>Calculated Daily Rate</TableCell>
                   <TableCell className="text-right">{formatCurrency(salaryCalculation.dailyRate)}</TableCell>
                 </TableRow>
+                 <TableRow>
+                  <TableCell>Effective Working Days for Worker</TableCell>
+                  <TableCell className="text-right">{salaryCalculation.effectiveWorkingDaysForWorker}</TableCell>
+                </TableRow>
                 <TableRow>
-                  <TableCell>Absent Days</TableCell>
+                  <TableCell className="font-semibold">Base Earnable Salary for Period</TableCell>
+                  <TableCell className="text-right font-semibold">{formatCurrency(salaryCalculation.baseEarnableSalaryForPeriod)}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>Absent Days (within effective period)</TableCell>
                   <TableCell className="text-right">{salaryCalculation.absentDays}</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell>Half-Day Leaves</TableCell>
+                  <TableCell>Half-Day Leaves (within effective period)</TableCell>
                   <TableCell className="text-right">{salaryCalculation.halfDays}</TableCell>
-                </TableRow>
-                 <TableRow>
-                  <TableCell>Per-Day Wage Taken (Days)</TableCell>
-                  <TableCell className="text-right">{salaryCalculation.perDayWageTakenDays}</TableCell>
                 </TableRow>
                 <TableRow className="text-destructive">
                   <TableCell>Deduction for Absence</TableCell>
@@ -186,11 +212,11 @@ export default function WageReport() {
                   <TableCell>Deduction for Half-Days</TableCell>
                   <TableCell className="text-right">-{formatCurrency(salaryCalculation.deductionForHalfDay)}</TableCell>
                 </TableRow>
-                 <TableRow className="text-destructive">
-                  <TableCell>Deduction for Per-Day Wage Taken</TableCell>
-                  <TableCell className="text-right">-{formatCurrency(salaryCalculation.deductionForPerDayWage)}</TableCell>
+                <TableRow className="text-destructive">
+                  <TableCell>Total Per-Day Wage Taken</TableCell>
+                  <TableCell className="text-right">-{formatCurrency(salaryCalculation.totalPerDayWageTakenAmount)}</TableCell>
                 </TableRow>
-                <TableRow className="font-bold text-lg bg-muted">
+                <TableRow className={`font-bold text-lg ${salaryCalculation.netSalary < 0 ? 'text-destructive' : 'text-foreground'} bg-muted`}>
                   <TableCell>Net Payable Salary</TableCell>
                   <TableCell className="text-right">{formatCurrency(salaryCalculation.netSalary)}</TableCell>
                 </TableRow>
