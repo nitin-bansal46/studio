@@ -20,19 +20,16 @@ import {
   LayoutDashboard,
   Users,
   CalendarCheck,
-  BarChart3,
-  Briefcase,
-  FileText,
-  DollarSign,
-  AlertTriangle,
+  BarChart3, // Main reports icon
+  FileText,   // Leaves icon
+  IndianRupee, // Wages icon (changed from DollarSign)
   Settings,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
 import React, { useState } from 'react';
-import Logo from './icons/Logo'; // Assuming you have a Logo component
+import Logo from './icons/Logo';
 import { Separator } from './ui/separator';
-import { Toaster } from './ui/toaster';
 
 interface NavItem {
   href: string;
@@ -51,8 +48,8 @@ const navItems: NavItem[] = [
     icon: BarChart3,
     subItems: [
       { href: '/reports/leaves', label: 'Leaves', icon: FileText },
-      { href: '/reports/wages', label: 'Wages', icon: DollarSign },
-      { href: '/reports/anomalies', label: 'Anomalies', icon: AlertTriangle },
+      { href: '/reports/wages', label: 'Wages', icon: IndianRupee },
+      // { href: '/reports/anomalies', label: 'Anomalies', icon: AlertTriangle }, // Removed Anomalies
     ],
   },
 ];
@@ -89,7 +86,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <SidebarMenu>
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
-                  {item.subItems ? (
+                  {item.subItems && item.subItems.length > 0 ? ( // Check if subItems exist and is not empty
                     <>
                       <SidebarMenuButton
                         onClick={toggleReportsSubMenu}

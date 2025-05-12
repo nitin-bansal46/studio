@@ -1,30 +1,66 @@
 'use client';
 
+import React, { useState, useEffect } from 'react';
 import PageHeader from '@/components/shared/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { GearIcon } from '@radix-ui/react-icons'; // Example, ensure this or similar is available or use Lucide
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+// import { GearIcon } from '@radix-ui/react-icons'; // Example, using Lucide instead
+import { Moon, Sun, Languages } from 'lucide-react'; // Icons for theme toggle
 
 export default function SettingsPage() {
-  // Placeholder state for settings
-  // In a real app, these would come from localStorage or a backend
-  const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
-  const [defaultCurrency, setDefaultCurrency] = React.useState('USD');
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [defaultCurrency, setDefaultCurrency] = useState('INR');
+  const [currentTheme, setCurrentTheme] = useState('light');
+  const [selectedLanguage, setSelectedLanguage] = useState('en');
+
+  useEffect(() => {
+    const storedTheme = localStorage.getItem('wagewise-theme') || 'light';
+    setCurrentTheme(storedTheme);
+    if (storedTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+
+    const storedLanguage = localStorage.getItem('wagewise-language') || 'en';
+    setSelectedLanguage(storedLanguage);
+    // Add logic here to actually change language if i18n is implemented
+  }, []);
+
+  const handleThemeChange = (isDark: boolean) => {
+    const newTheme = isDark ? 'dark' : 'light';
+    setCurrentTheme(newTheme);
+    localStorage.setItem('wagewise-theme', newTheme);
+    if (newTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
+  const handleLanguageChange = (lang: string) => {
+    setSelectedLanguage(lang);
+    localStorage.setItem('wagewise-language', lang);
+    // Placeholder: Actual language change would require i18n library and reload or dynamic content update.
+    alert(`Language changed to ${lang}. Full internationalization support is not yet implemented.`);
+  };
+
 
   return (
     <div className="flex flex-col space-y-6 p-4 md:p-6">
       <PageHeader
         title="Application Settings"
-        description="Configure general settings for WageWise."
+        description="Configure general settings and preferences for WageWise."
       />
 
       <Card>
         <CardHeader>
-          <CardTitle>General Settings</CardTitle>
-          <CardDescription>Manage your application preferences.</CardDescription>
+          <CardTitle>Preferences</CardTitle>
+          <CardDescription>Manage your application display and language settings.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
@@ -34,10 +70,42 @@ export default function SettingsPage() {
               value={defaultCurrency} 
               onChange={(e) => setDefaultCurrency(e.target.value)}
               className="max-w-xs"
-              placeholder="e.g. USD, INR"
+              placeholder="e.g. INR, USD"
+              disabled // Currency is fixed to INR for now
             />
             <p className="text-xs text-muted-foreground">
-              Set the default currency for salary display.
+              Default currency for salary display (currently fixed to INR).
+            </p>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Switch 
+              id="theme-toggle" 
+              checked={currentTheme === 'dark'}
+              onCheckedChange={handleThemeChange}
+            />
+            <Label htmlFor="theme-toggle" className="flex items-center">
+              {currentTheme === 'dark' ? <Moon className="mr-2 h-4 w-4" /> : <Sun className="mr-2 h-4 w-4" />}
+              Dark Mode
+            </Label>
+          </div>
+           <p className="text-xs text-muted-foreground -mt-4 ml-[3.25rem]">
+              Toggle between light and dark themes for the application.
+            </p>
+
+          <div className="space-y-2">
+            <Label htmlFor="language-select">Application Language</Label>
+             <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
+                <SelectTrigger className="w-full md:w-[200px]">
+                  <SelectValue placeholder="Select Language" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="en">English</SelectItem>
+                  <SelectItem value="hi">हिन्दी (Hindi)</SelectItem>
+                </SelectContent>
+              </Select>
+            <p className="text-xs text-muted-foreground">
+              Choose your preferred language (Hindi support is a placeholder).
             </p>
           </div>
 
@@ -55,10 +123,10 @@ export default function SettingsPage() {
 
           <div>
             <Button disabled> {/* Placeholder action */}
-              Save Settings 
+              Save Preferences
             </Button>
              <p className="text-xs text-muted-foreground mt-2">
-              Settings are illustrative and not functional in this version.
+              Preferences like theme and language are saved automatically. Other settings are illustrative.
             </p>
           </div>
         </CardContent>
@@ -66,6 +134,7 @@ export default function SettingsPage() {
        <Card>
         <CardHeader>
             <CardTitle>Data Management</CardTitle>
+            <CardDescription>Manage your application data (placeholder features).</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
             <div>
@@ -81,5 +150,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-import React from 'react'; // Added React import to satisfy linter for useState

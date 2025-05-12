@@ -1,7 +1,7 @@
 // src/contexts/AppContext.tsx
 'use client';
 
-import type { Worker, AttendanceRecord, AnomalyReport, AttendanceStatus } from '@/types';
+import type { Worker, AttendanceRecord, AttendanceStatus } from '@/types'; // Removed AnomalyReport
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 interface AppContextType {
@@ -14,8 +14,8 @@ interface AppContextType {
   updateAttendanceRecord: (record: AttendanceRecord) => void;
   deleteAttendanceRecord: (recordId: string) => void;
   getAttendanceForWorker: (workerId: string, date: string) => AttendanceRecord | undefined;
-  anomalyReports: AnomalyReport[];
-  addAnomalyReport: (report: AnomalyReport) => void;
+  // anomalyReports: AnomalyReport[]; // Removed
+  // addAnomalyReport: (report: AnomalyReport) => void; // Removed
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -27,31 +27,26 @@ const useLocalStorage = <T,>(key: string, initialValue: T): [T, React.Dispatch<R
     }
     try {
       const item = window.localStorage.getItem(key);
-      // Ensure existing workers get default joinDate if missing
       if (key === 'wagewise_workers' && item) {
         const parsedWorkers = JSON.parse(item) as Worker[];
         parsedWorkers.forEach(w => {
           if (!w.joinDate) {
             // @ts-ignore
-            w.joinDate = new Date().toISOString().split('T')[0]; // Default to today if migrating old data
+            w.joinDate = new Date().toISOString().split('T')[0]; 
           }
         });
         return parsedWorkers as T;
       }
-       // Migration for attendance records: rename perDayWageAmount to moneyTakenAmount
       if (key === 'wagewise_attendance' && item) {
-        let parsedAttendance = JSON.parse(item) as any[]; // Read as any to handle old structure
+        let parsedAttendance = JSON.parse(item) as any[]; 
         parsedAttendance = parsedAttendance.map(record => {
           if (record.hasOwnProperty('perDayWageAmount')) {
-            // Ensure moneyTakenAmount becomes a number, defaulting to 0 if perDayWageAmount was undefined/null
             record.moneyTakenAmount = Number(record.perDayWageAmount) || 0;
             delete record.perDayWageAmount;
           }
-          // If moneyTakenAmount is undefined from old data (not perDayWageAmount), set to 0.
           if (record.moneyTakenAmount === undefined) {
             record.moneyTakenAmount = 0;
           }
-
           if (record.status === 'per-day-wage-taken') {
             record.status = 'present'; 
           }
@@ -86,7 +81,7 @@ const useLocalStorage = <T,>(key: string, initialValue: T): [T, React.Dispatch<R
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [workers, setWorkers] = useLocalStorage<Worker[]>('wagewise_workers', []);
   const [attendanceRecords, setAttendanceRecords] = useLocalStorage<AttendanceRecord[]>('wagewise_attendance', []);
-  const [anomalyReports, setAnomalyReports] = useLocalStorage<AnomalyReport[]>('wagewise_anomalies', []);
+  // const [anomalyReports, setAnomalyReports] = useLocalStorage<AnomalyReport[]>('wagewise_anomalies', []); // Removed
 
   const addWorker = (workerData: Omit<Worker, 'id'>) => {
     const newWorker: Worker = { 
@@ -112,7 +107,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addAttendanceRecord = (recordData: Omit<AttendanceRecord, 'id'>) => {
     const existingRecord = attendanceRecords.find(ar => ar.workerId === recordData.workerId && ar.date === recordData.date);
     
-    // Ensure moneyTakenAmount is a number, defaulting to 0 if undefined or null.
     const moneyTaken = (recordData.moneyTakenAmount === undefined || recordData.moneyTakenAmount === null) 
                        ? 0 
                        : Number(recordData.moneyTakenAmount);
@@ -131,7 +125,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
   
   const updateAttendanceRecord = (updatedRecord: AttendanceRecord) => {
-     // Ensure moneyTakenAmount is a number, defaulting to 0 if undefined or null.
     const moneyTaken = (updatedRecord.moneyTakenAmount === undefined || updatedRecord.moneyTakenAmount === null)
                        ? 0
                        : Number(updatedRecord.moneyTakenAmount);
@@ -151,9 +144,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return attendanceRecords.find(ar => ar.workerId === workerId && ar.date === date);
   };
 
-  const addAnomalyReport = (report: AnomalyReport) => {
-    setAnomalyReports(prev => [report, ...prev.filter(r => !(r.workerId === report.workerId && r.monthYear === report.monthYear))].slice(0, 20)); 
-  };
+  // const addAnomalyReport = (report: AnomalyReport) => { // Removed
+  //   setAnomalyReports(prev => [report, ...prev.filter(r => !(r.workerId === report.workerId && r.monthYear === report.monthYear))].slice(0, 20)); 
+  // };
 
   return (
     <AppContext.Provider
@@ -167,8 +160,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updateAttendanceRecord,
         deleteAttendanceRecord,
         getAttendanceForWorker,
-        anomalyReports,
-        addAnomalyReport,
+        // anomalyReports, // Removed
+        // addAnomalyReport, // Removed
       }}
     >
       {children}

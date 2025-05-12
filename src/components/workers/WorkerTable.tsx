@@ -12,12 +12,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Edit3, Trash2 } from 'lucide-react';
 import type { Worker } from '@/types';
-import { formatDate } from '@/lib/date-utils'; // Ensure formatDate is imported
+import { formatDate } from '@/lib/date-utils'; 
 
 interface WorkerTableProps {
   workers: Worker[];
   onEdit: (worker: Worker) => void;
-  onDelete: (worker: Worker) => void; // Changed from (workerId: string) => void
+  onDelete: (worker: Worker) => void; 
 }
 
 export function WorkerTable({ workers, onEdit, onDelete }: WorkerTableProps) {
@@ -46,7 +46,7 @@ export function WorkerTable({ workers, onEdit, onDelete }: WorkerTableProps) {
               {worker.leftDate ? formatDate(worker.leftDate, 'PP') : '-'}
             </TableCell>
             <TableCell className="text-right">
-              {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(worker.assignedSalary)}
+              {new Intl.NumberFormat('en-IN', { currency: 'INR', style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(worker.assignedSalary)}
             </TableCell>
             <TableCell className="text-right">
               <Button variant="ghost" size="icon" onClick={() => onEdit(worker)} className="mr-2 hover:text-accent">

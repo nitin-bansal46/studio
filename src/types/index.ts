@@ -16,11 +16,11 @@ export interface AttendanceRecord {
   moneyTakenAmount?: number; // Amount of money taken on this day, independent of status
 }
 
-export interface AnomalyReport {
-  workerId: string;
-  monthYear: string; // e.g., "2023-07"
-  anomalies: string[];
-  summary: string;
-  generatedAt: string; // ISO string timestamp
-}
-
+// Removed AnomalyReport interface
+// export interface AnomalyReport {
+//   workerId: string;
+//   monthYear: string; // e.g., "2023-07"
+//   anomalies: string[];
+//   summary: string;
+//   generatedAt: string; // ISO string timestamp
+// }

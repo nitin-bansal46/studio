@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { getMonthYearString, getEffectiveDaysForWorkerInMonth, formatIsoDate, getDatesForMonth } from '@/lib/date-utils';
 import type { Worker } from '@/types';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Users, DollarSign } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, IndianRupee } from 'lucide-react'; // Changed DollarSign to IndianRupee
 import MonthYearPicker from '@/components/shared/MonthYearPicker';
 
 interface SalaryCalculation {
@@ -24,7 +24,7 @@ interface SalaryCalculation {
   deductionForAbsence: number;
   deductionForHalfDay: number;
   netSalary: number;
-  totalPresentDays: number; // Added to display total present days
+  totalPresentDays: number; 
 }
 
 export default function WageReport() {
@@ -132,7 +132,7 @@ export default function WageReport() {
   };
   
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
   };
 
   if (workers.length === 0) {
@@ -246,7 +246,7 @@ export default function WageReport() {
       ) : (
         <Card>
            <CardContent className="pt-6 text-center">
-             <DollarSign className="mx-auto h-12 w-12 text-muted-foreground" />
+             <IndianRupee className="mx-auto h-12 w-12 text-muted-foreground" />
             <p className="mt-2 text-sm text-muted-foreground">Select a worker and month to view their wage calculation.</p>
           </CardContent>
         </Card>
@@ -254,4 +254,3 @@ export default function WageReport() {
     </div>
   );
 }
-

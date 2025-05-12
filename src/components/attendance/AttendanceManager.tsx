@@ -27,7 +27,6 @@ export default function AttendanceManager() {
   
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date()); 
-  // Store money taken amounts as number | undefined. Undefined means empty input.
   const [moneyTakenAmounts, setMoneyTakenAmounts] = useState<Record<string, number | undefined>>({});
   
   const today = useMemo(() => new Date(), []);
@@ -52,7 +51,7 @@ export default function AttendanceManager() {
         datesInMonth.forEach(date => {
             const isoDate = formatIsoDate(date);
             const record = getAttendanceForWorker(selectedWorkerId, isoDate);
-            initialAmounts[isoDate] = record?.moneyTakenAmount; // Will be number or undefined
+            initialAmounts[isoDate] = record?.moneyTakenAmount; 
         });
         setMoneyTakenAmounts(initialAmounts);
     } else {
@@ -66,7 +65,6 @@ export default function AttendanceManager() {
     const isoDate = formatIsoDate(date);
     
     const currentMoneyRaw = moneyTakenAmounts[isoDate];
-    // If money input is empty (currentMoneyRaw is undefined) or not a number, save 0. Otherwise, save the number.
     const moneyToSave = (currentMoneyRaw === undefined || currentMoneyRaw === null || isNaN(Number(currentMoneyRaw))) 
                        ? 0 
                        : Number(currentMoneyRaw);
@@ -88,12 +86,9 @@ export default function AttendanceManager() {
     if(!selectedWorkerId || !selectedWorker) return;
 
     const amount = parseFloat(value);
-    // If input is empty string or not a valid number, default to 0. Otherwise, use the parsed amount.
     const newAmountToSave = (value.trim() === '' || isNaN(amount)) ? 0 : amount;
     
     const existingRecord = getAttendanceForWorker(selectedWorkerId, isoDate);
-    // Default to 'present' if setting money on a day with no status or record,
-    // or if the existing status is somehow invalid (should not happen with type safety).
     const statusToSet = existingRecord?.status || 'present'; 
 
     addAttendanceRecord({
@@ -103,7 +98,6 @@ export default function AttendanceManager() {
       moneyTakenAmount: newAmountToSave,
     });
     
-    // Update local state for input to reflect the saved value (e.g., show "0" if input was cleared)
     setMoneyTakenAmounts(prev => ({
         ...prev,
         [isoDate]: newAmountToSave,
@@ -221,7 +215,6 @@ export default function AttendanceManager() {
                 {datesInMonth.map(date => {
                   const isoDate = formatIsoDate(date);
                   const record = getAttendanceForWorker(selectedWorkerId, isoDate);
-                  // Display value from local state moneyTakenAmounts, fallback to empty string for input control
                   const currentDisplayAmount = moneyTakenAmounts[isoDate];
                   const moneyInputValue = currentDisplayAmount === undefined ? '' : currentDisplayAmount.toString();
                   
@@ -321,4 +314,3 @@ export default function AttendanceManager() {
     </>
   );
 }
-
