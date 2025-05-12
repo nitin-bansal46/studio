@@ -36,14 +36,14 @@ export default function RootLayout({
   useEffect(() => {
     const storedTheme = localStorage.getItem('wagewise-theme');
     if (
-      storedTheme === 'dark' ||
-      (!storedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      storedTheme === 'light' ||
+      (!storedTheme && window.matchMedia('(prefers-color-scheme: light)').matches)
     ) {
-      document.documentElement.classList.add('dark');
-      if (!storedTheme) localStorage.setItem('wagewise-theme', 'dark'); // Persist if system preference was dark
+      document.documentElement.classList.add('light');
+      if (!storedTheme) localStorage.setItem('wagewise-theme', 'light'); // Persist if system preference was dark
     } else {
-      document.documentElement.classList.remove('dark');
-      if (!storedTheme) localStorage.setItem('wagewise-theme', 'light'); // Persist if system preference was light
+      document.documentElement.classList.remove('light');
+      if (!storedTheme) localStorage.setItem('wagewise-theme', 'dark'); // Persist if system preference was light
     }
   }, []);
 
