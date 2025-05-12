@@ -4,34 +4,42 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAppContext } from '@/contexts/AppContext';
 import { Users, CalendarCheck, UserMinus } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo } from 'react';
-import { getMonthYearString, isSameDay, formatIsoDate } from '@/lib/date-utils';
+import { useMemo, useState, useEffect } from 'react';
+import { formatIsoDate } from '@/lib/date-utils';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function DashboardPage() {
   const { workers, attendanceRecords } = useAppContext();
+  const [isClientMounted, setIsClientMounted] = useState(false);
+
+  useEffect(() => {
+    setIsClientMounted(true);
+  }, []);
 
   const today = useMemo(() => new Date(), []);
   const todayIso = useMemo(() => formatIsoDate(today), [today]);
 
   const presentTodayCount = useMemo(() => {
+    if (!isClientMounted) return 0; 
     return attendanceRecords.filter(
       (record) =>
         record.date === todayIso && record.status === 'present'
     ).length;
-  }, [attendanceRecords, todayIso]);
+  }, [attendanceRecords, todayIso, isClientMounted]);
 
   const absentOrHalfDayTodayCount = useMemo(() => {
+    if (!isClientMounted) return 0;
     return attendanceRecords.filter(
       (record) =>
         record.date === todayIso && (record.status === 'absent' || record.status === 'half-day')
     ).length;
-  }, [attendanceRecords, todayIso]);
+  }, [attendanceRecords, todayIso, isClientMounted]);
 
   return (
     <div className="flex flex-col space-y-6 p-4 md:p-6">
       <h1 className="text-3xl font-semibold text-foreground">Dashboard</h1>
       
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3"> {/* Adjusted grid to 3 cols for aesthetics */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Link href="/workers" passHref>
           <Card className="hover:shadow-lg transition-shadow cursor-pointer">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -39,7 +47,9 @@ export default function DashboardPage() {
               <Users className="h-5 w-5 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{workers.length}</div>
+              <div className="text-2xl font-bold">
+                {isClientMounted ? workers.length : <Skeleton className="h-8 w-10" />}
+              </div>
               <p className="text-xs text-muted-foreground">Manage worker profiles</p>
             </CardContent>
           </Card>
@@ -52,8 +62,12 @@ export default function DashboardPage() {
               <CalendarCheck className="h-5 w-5 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{presentTodayCount}</div>
-              <p className="text-xs text-muted-foreground">As of {today.toLocaleDateString()}</p>
+              <div className="text-2xl font-bold">
+                {isClientMounted ? presentTodayCount : <Skeleton className="h-8 w-10" />}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {isClientMounted ? `As of ${today.toLocaleDateString()}` : <Skeleton className="h-4 w-24" />}
+              </p>
             </CardContent>
           </Card>
         </Link>
@@ -65,7 +79,9 @@ export default function DashboardPage() {
               <UserMinus className="h-5 w-5 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{absentOrHalfDayTodayCount}</div>
+              <div className="text-2xl font-bold">
+                {isClientMounted ? absentOrHalfDayTodayCount : <Skeleton className="h-8 w-10" />}
+              </div>
                <p className="text-xs text-muted-foreground">View leave reports</p>
             </CardContent>
           </Card>
