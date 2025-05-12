@@ -108,7 +108,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                                 <Link href={subItem.href} legacyBehavior passHref>
                                   <SidebarMenuButton
                                     asChild
-                                    variant="ghost"
+                                    variant="outline" {/* Changed from "ghost" to "outline" */}
                                     size="sm"
                                     className="w-full justify-start"
                                     isActive={pathname === subItem.href}
